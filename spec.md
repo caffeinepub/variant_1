@@ -1,67 +1,50 @@
-# VARIANT
+# VARIANT — Deterministic Formula-First Math Engine
 
 ## Current State
-
-- `src/frontend/src/lib/variantEngine.ts`: Core engine with `generateVariants()`, `classify()`, `buildOptions()`, `solveQuestion()` per-chapter solvers, and `formatExport()`.
-- `src/frontend/src/components/GenerateScreen.tsx`: Wraps `InputScreen` + `ResultsScreen`. MCQ options are displayed but NOT clickable (no feedback). No bookmark save to localStorage.
-- `src/frontend/src/components/ResultsScreen.tsx`: Shows variant cards with MCQ options as static divs (no click handlers, no green/red feedback, no bookmark icon).
-- `src/frontend/src/components/VariantScreen.tsx`: Two-tier chapter/subTopic folder system. Questions are shown in collapsible cards. **Clicking a question does nothing** — no navigation to generate a variant.
-- `src/frontend/src/App.tsx`: Tab-based SPA with `activeTab` state. `handleGenerate` is in App. Switching tabs is done via `setActiveTab`. No mechanism to pre-fill a question from the Variant tab and navigate to Generate.
-- `variantEngine.ts` currently has NO pre-generation filtering — options are generated and shown immediately with no unit check, integer check, or plausibility check.
+- variantEngine.ts has solver functions per chapter (solveTimeDistance, solveProfitLoss, etc.)
+- Solvers compute correct answers and distractors in floating point
+- Integer mode rounds output after the fact — does NOT guarantee clean integers throughout
+- Fraction mode calls fmt() at display time — not enforced during solver
+- Decimal mode does not control intermediate precision — fmt() just formats the final output
+- Distractor generation uses simple arithmetic offsets, not mode-aware logic
+- The 3-filter post-processing tries to patch up bad options but cannot fix fundamentally wrong values
+- Scale factors (SCALE_FACTORS array) are applied blindly — no check that scaled numbers produce a clean-mode answer
 
 ## Requested Changes (Diff)
 
 ### Add
-
-1. **3-Filter Mechanism in `variantEngine.ts`** — Run these checks inside `generateVariants()` before any variant is returned:
-   - **Filter 1 – Unit Consistency**: Detect the expected answer unit from the question text (₹/rupees, days, km, hours, %, kg, etc.). After solving, verify the correct answer and all 3 distractors share the same unit. If a distractor has the wrong unit, replace it with a recalculated one using a different error pattern.
-   - **Filter 2 – Integer Integrity**: If `settings.integerOnly` is true, verify the correct answer AND all distractors are whole integers (no `.x` decimals). If any distractor is not an integer, recalculate it using a different offset/pattern until it is. Never round — recalculate.
-   - **Filter 3 – Plausibility Check**: Ensure no two options have the same formatted string. Ensure no option is zero or negative unless the chapter allows it. Ensure all distractors are within 0.1x–5x range of the correct answer (i.e., no wildly implausible outliers).
-
-2. **Clickable MCQ options with instant feedback in `ResultsScreen.tsx`**:
-   - Each option button is clickable.
-   - On click: if correct → turn green (#28A745 bg, white text). If wrong → clicked option turns red (#DC3545), correct option turns green.
-   - After any selection, all options are disabled.
-   - Per-variant selected state tracked with `useState<Record<string, string>>` (variantId → selected label).
-
-3. **Bookmark save in `ResultsScreen.tsx`**:
-   - Add a bookmark icon (top-right of each variant card).
-   - On tap: save to localStorage under key `variant_saved_questions` in the same `SavedQuestion` format used by `VariantScreen`.
-   - Include `chapter`, `subTopic`, `solution`, `options`, `correctLabel`, `id`, `questionText`, `savedAt`.
-   - Show a toast confirmation when saved.
-
-4. **Click-to-Generate in `VariantScreen.tsx`**:
-   - Each question row inside a sub-topic folder becomes a tappable card with a small arrow/chevron-right icon.
-   - On tap: call an `onNavigateToGenerate(questionText: string)` prop callback.
-   - This navigates the user to the Generate tab AND pre-fills the question input with that question text.
-
-5. **`onNavigateToGenerate` wired in `App.tsx`**:
-   - `VariantScreen` receives a new prop `onNavigateToGenerate: (questionText: string) => void`.
-   - In `App.tsx`, pass a handler that: sets `activeTab` to `"generate"` and stores the question text in a new state variable `prefillQuestion`.
-   - `GenerateScreen` / `InputScreen` receives `prefillQuestion` prop and uses it as the initial textarea value (or replaces current value via `useEffect`).
+- `ModeConstraint` type: `{ mode: 'integer' | 'fraction' | 'decimal', decimalPrecision?: number }`
+- `enforceMode(value: number, constraint: ModeConstraint): number` — snaps a number to the required mode
+- `isValidForMode(value: number, constraint: ModeConstraint): boolean` — checks if a value is valid for the mode
+- `reverseEngineerScaleFactor(tokens, chapter, constraint)` — finds a scale factor that produces a mode-valid answer
+- `buildModeAwareDistractors(correct, chapter, constraint, unit)` — generates 3 distractors that are all valid for the mode
+- Fraction output: `toFraction(value): string` — returns simplified fraction string like "3/4" or "5/2"
+- Each solver gains a new parameter `constraint: ModeConstraint` and internally adjusts its numbers so the answer is mode-valid BEFORE returning
 
 ### Modify
-
-- `variantEngine.ts` → `generateVariants()`: Wrap the distractor building step with the 3 filters. The filters are internal — user sees no change except better quality output.
-- `App.tsx`: Add `prefillQuestion` state, pass `onNavigateToGenerate` to `VariantScreen`, pass `prefillQuestion` to `GenerateScreen`.
-- `GenerateScreen.tsx` / `InputScreen.tsx`: Accept optional `prefillQuestion?: string` prop. In `InputScreen`, use a `useEffect` that sets the textarea value whenever `prefillQuestion` changes (and is non-empty).
-- `ResultsScreen.tsx`: Add bookmark icon + click state + green/red feedback logic.
-- `VariantScreen.tsx`: Question rows become clickable, accept `onNavigateToGenerate` prop.
+- All solvers (`solveTimeDistance`, `solveProfitLoss`, `solveSimpleInterest`, `solveCompoundInterest`, `solveWorkTime`, `solveWorkWages`, `solveWages`, `solvePercentage`, `solveGeneric`) must:
+  1. Accept `constraint: ModeConstraint`
+  2. Pick/scale input numbers so the correct answer satisfies the constraint natively
+  3. Generate distractors that also satisfy the constraint (no post-hoc rounding)
+- `generateVariants()` must:
+  1. Determine constraint from settings (priority: integer > fraction > decimal)
+  2. Pass constraint to solvers
+  3. When scaling numbers for a variant, find a scale factor that keeps the answer mode-valid
+  4. Reject and retry a scale factor if it produces a non-mode-valid answer (up to 10 attempts)
+- `fmt()` must be updated so that fraction mode outputs true simplified fractions like "3/4" not "750/1000"
+- `buildOptions()` passes constraint to distractor builder
 
 ### Remove
-
-- Nothing removed.
+- Post-hoc rounding of correct answers in Filter 2 (integer integrity) — the answer is now correct by construction
+- Blind `sanitizeNumber()` calls that could corrupt valid decimal/fraction values
 
 ## Implementation Plan
-
-1. **`variantEngine.ts`** — Add `applyFilters(options, correctVal, settings, unit, chapter)` helper that enforces all 3 filters. Call it inside `generateVariants()` after `buildOptions()`. For integer filter: if any option text contains a decimal point and integerOnly is true, regenerate that distractor by using `correctVal ± small integer offsets` until all are clean integers. For unit filter: all option strings must end with the same unit suffix. For plausibility: reject options outside 0.1x–5x range of correct.
-
-2. **`ResultsScreen.tsx`** — Add `selectedAnswers` state map. Convert option display divs into `<button>` elements. Add bookmark icon using lucide `Bookmark`. Wire up localStorage save.
-
-3. **`VariantScreen.tsx`** — Add `onNavigateToGenerate: (q: string) => void` prop. Wrap each question row in a button. Show a right-arrow icon. On click, call the prop.
-
-4. **`App.tsx`** — Add `prefillQuestion` state. Pass `onNavigateToGenerate` to `VariantScreen`. Pass `prefillQuestion` to `GenerateScreen`.
-
-5. **`InputScreen.tsx`** — Accept `prefillQuestion` prop. Add `useEffect(() => { if (prefillQuestion) setQuestion(prefillQuestion); }, [prefillQuestion])`.
-
-6. **`GenerateScreen.tsx`** — Accept and pass down `prefillQuestion` to `InputScreen`.
+1. Add `ModeConstraint` type and `isValidForMode()` / `enforceMode()` helpers
+2. Add `toFraction(n)` proper simplified fraction formatter
+3. Update `fmt()` to use `toFraction()` for true fractions
+4. Rewrite each solver to accept and satisfy constraint
+5. Add `findValidScaleFactor()` that tries SCALE_FACTORS until answer is mode-valid
+6. Update `generateVariants()` to use constraint-aware scaling
+7. Rewrite `buildModeAwareDistractors()` — distractors built from realistic math errors, all mode-valid
+8. Update `buildOptions()` to use new distractor builder
+9. Keep 3-filter post-processing as a safety net but it should rarely need to fire
