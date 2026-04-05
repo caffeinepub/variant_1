@@ -36,22 +36,49 @@ export function SettingsScreen() {
     }
   }
 
+  const sectionLabel = (text: string) => (
+    <p
+      style={{
+        fontSize: "11px",
+        fontWeight: 700,
+        color: "#90A4AE",
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        marginBottom: "10px",
+        fontFamily: "'Figtree', sans-serif",
+      }}
+    >
+      {text}
+    </p>
+  );
+
   return (
-    <div className="px-4 pt-8" style={{ minHeight: "calc(100vh - 70px)" }}>
+    <div
+      className="px-4 pt-8"
+      style={{ minHeight: "calc(100vh - 70px)", paddingBottom: "24px" }}
+    >
       {/* ── Header ── */}
-      <div className="text-center" style={{ marginBottom: "20px" }}>
+      <div className="text-center" style={{ marginBottom: "28px" }}>
         <h1
-          className="font-extrabold tracking-tight"
-          style={{ fontSize: "32px", color: "#2196F3" }}
+          style={{
+            fontFamily: "'Figtree', sans-serif",
+            fontWeight: 800,
+            fontSize: "36px",
+            letterSpacing: "-0.5px",
+            lineHeight: 1,
+          }}
         >
-          VARIANT
+          <span style={{ color: "#90CAF9", fontWeight: 600 }}>VAR</span>
+          <span style={{ color: "#0D47A1", fontWeight: 900 }}>IANT</span>
         </h1>
         <p
           style={{
-            fontSize: "13px",
-            color: "#9E9E9E",
+            fontSize: "11px",
+            color: "#90A4AE",
             fontWeight: 500,
-            marginTop: "8px",
+            letterSpacing: "0.15em",
+            textTransform: "uppercase",
+            marginTop: "6px",
           }}
         >
           Settings
@@ -65,50 +92,55 @@ export function SettingsScreen() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
         >
-          <p
-            className="font-bold"
-            style={{
-              fontSize: "11px",
-              color: "#9E9E9E",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              marginBottom: "10px",
-            }}
-          >
-            Cloud Connect
-          </p>
-
+          {sectionLabel("Cloud Connect")}
           <div
-            className="rounded-2xl bg-white"
-            style={{ padding: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
+            style={{
+              borderRadius: "24px",
+              background: "#ffffff",
+              padding: "20px",
+              boxShadow:
+                "0 6px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04)",
+            }}
           >
             <div className="flex items-center" style={{ gap: "16px" }}>
               <div
-                className="flex items-center justify-center rounded-xl shrink-0"
                 style={{
-                  width: 48,
-                  height: 48,
-                  background: isLoggedIn ? "#E8F5E9" : "#E3F2FD",
+                  width: 52,
+                  height: 52,
+                  borderRadius: "16px",
+                  background: isLoggedIn
+                    ? "linear-gradient(135deg, #E8F5E9, #C8E6C9)"
+                    : "linear-gradient(135deg, #E3F2FD, #BBDEFB)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: isLoggedIn
+                    ? "0 4px 14px rgba(40,167,69,0.18)"
+                    : "0 4px 14px rgba(33,150,243,0.18)",
+                  flexShrink: 0,
                 }}
               >
                 {isLoggedIn ? (
-                  <Wifi size={22} style={{ color: "#388E3C" }} />
+                  <Wifi size={24} style={{ color: "#388E3C" }} />
                 ) : (
-                  <WifiOff size={22} style={{ color: "#2196F3" }} />
+                  <WifiOff size={24} style={{ color: "#2196F3" }} />
                 )}
               </div>
-
               <div className="flex-1" style={{ minWidth: 0 }}>
                 <p
-                  className="font-bold"
-                  style={{ fontSize: "15px", color: "#212121" }}
+                  style={{
+                    fontFamily: "'Figtree', sans-serif",
+                    fontSize: "16px",
+                    fontWeight: 700,
+                    color: "#212121",
+                  }}
                 >
                   {isLoggedIn ? "Connected" : "Not Connected"}
                 </p>
                 <p
                   style={{
                     fontSize: "12px",
-                    color: "#9E9E9E",
+                    color: "#90A4AE",
                     marginTop: "2px",
                   }}
                 >
@@ -117,18 +149,16 @@ export function SettingsScreen() {
                     : "Log in to sync your variants"}
                 </p>
               </div>
-
               {isLoggedIn && (
                 <span
-                  className="rounded-full font-bold"
                   style={{
                     fontSize: "11px",
-                    paddingLeft: "10px",
-                    paddingRight: "10px",
-                    paddingTop: "4px",
-                    paddingBottom: "4px",
+                    fontWeight: 700,
+                    padding: "4px 12px",
                     background: "#E8F5E9",
                     color: "#388E3C",
+                    borderRadius: "50px",
+                    boxShadow: "0 2px 6px rgba(40,167,69,0.12)",
                   }}
                 >
                   Active
@@ -143,19 +173,25 @@ export function SettingsScreen() {
                   onClick={login}
                   disabled={isLoggingIn || isInitializing}
                   data-ocid="settings.cloud_connect_button"
-                  className="w-full flex items-center justify-center font-bold transition-all"
+                  className="w-full flex items-center justify-center font-bold transition-all active:scale-[0.98]"
                   style={{
                     gap: "8px",
-                    height: "48px",
-                    borderRadius: "24px",
+                    height: "50px",
+                    borderRadius: "50px",
                     background:
-                      isLoggingIn || isInitializing ? "#90CAF9" : "#2196F3",
+                      isLoggingIn || isInitializing
+                        ? "#90CAF9"
+                        : "linear-gradient(135deg, #2196F3, #1565C0)",
                     color: "#ffffff",
                     border: "none",
                     fontSize: "14px",
-                    boxShadow: "0 2px 8px rgba(33,150,243,0.2)",
+                    boxShadow:
+                      isLoggingIn || isInitializing
+                        ? "none"
+                        : "0 6px 20px rgba(33,150,243,0.35)",
                     cursor:
                       isLoggingIn || isInitializing ? "not-allowed" : "pointer",
+                    fontFamily: "'Figtree', sans-serif",
                   }}
                 >
                   {isLoggingIn ? (
@@ -178,16 +214,18 @@ export function SettingsScreen() {
                   type="button"
                   onClick={clear}
                   data-ocid="settings.disconnect_button"
-                  className="w-full flex items-center justify-center font-bold transition-all"
+                  className="w-full flex items-center justify-center font-bold transition-all active:scale-[0.98]"
                   style={{
                     gap: "8px",
-                    height: "48px",
-                    borderRadius: "24px",
+                    height: "50px",
+                    borderRadius: "50px",
                     background: "#ffffff",
                     color: "#E53935",
                     border: "1.5px solid #FFCDD2",
                     fontSize: "14px",
                     cursor: "pointer",
+                    boxShadow: "0 2px 10px rgba(220,53,69,0.10)",
+                    fontFamily: "'Figtree', sans-serif",
                   }}
                 >
                   <LogOut size={16} />
@@ -204,38 +242,36 @@ export function SettingsScreen() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: 0.08 }}
         >
-          <p
-            className="font-bold"
-            style={{
-              fontSize: "11px",
-              color: "#9E9E9E",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              marginBottom: "10px",
-            }}
-          >
-            Login ID
-          </p>
-
+          {sectionLabel("Login ID")}
           <div
-            className="rounded-2xl bg-white"
-            style={{ padding: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
+            style={{
+              borderRadius: "24px",
+              background: "#ffffff",
+              padding: "20px",
+              boxShadow:
+                "0 6px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04)",
+            }}
           >
             <div className="flex items-center" style={{ gap: "12px" }}>
               <div
-                className="flex items-center justify-center rounded-xl shrink-0"
                 style={{
-                  width: 40,
-                  height: 40,
-                  background: "#F5F7FA",
+                  width: 44,
+                  height: 44,
+                  borderRadius: "14px",
+                  background: "#F0F4F8",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
                 }}
               >
-                <User size={18} style={{ color: "#757575" }} />
+                <User size={18} style={{ color: "#546E7A" }} />
               </div>
               <div className="flex-1" style={{ minWidth: 0 }}>
                 <p
                   className="font-semibold truncate"
-                  style={{ fontSize: "13px", color: "#424242" }}
+                  style={{ fontSize: "13px", color: "#37474F" }}
                   data-ocid="settings.login_id"
                 >
                   {isLoggedIn ? truncatedPrincipal : "Not logged in"}
@@ -243,7 +279,7 @@ export function SettingsScreen() {
                 <p
                   style={{
                     fontSize: "11px",
-                    color: "#BDBDBD",
+                    color: "#B0BEC5",
                     marginTop: "2px",
                   }}
                 >
@@ -255,20 +291,23 @@ export function SettingsScreen() {
                   type="button"
                   onClick={handleCopyPrincipal}
                   data-ocid="settings.copy_button"
-                  className="flex items-center justify-center rounded-xl transition-all shrink-0"
+                  className="flex items-center justify-center transition-all"
                   style={{
-                    width: 36,
-                    height: 36,
-                    background: copied ? "#E8F5E9" : "#F5F7FA",
-                    border: "1px solid #E0E0E0",
+                    width: 38,
+                    height: 38,
+                    borderRadius: "12px",
+                    background: copied ? "#E8F5E9" : "#F0F4F8",
+                    border: "1px solid #E3EAF3",
                     cursor: "pointer",
+                    flexShrink: 0,
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
                   }}
                   aria-label="Copy principal ID"
                 >
                   {copied ? (
                     <CheckCircle2 size={16} style={{ color: "#388E3C" }} />
                   ) : (
-                    <Copy size={16} style={{ color: "#757575" }} />
+                    <Copy size={16} style={{ color: "#546E7A" }} />
                   )}
                 </button>
               )}
@@ -282,66 +321,81 @@ export function SettingsScreen() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: 0.16 }}
         >
-          <p
-            className="font-bold"
+          {sectionLabel("About")}
+          <div
             style={{
-              fontSize: "11px",
-              color: "#9E9E9E",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              marginBottom: "10px",
+              borderRadius: "24px",
+              background: "#ffffff",
+              padding: "20px",
+              boxShadow:
+                "0 6px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04)",
             }}
           >
-            About
-          </p>
-
-          <div
-            className="rounded-2xl bg-white"
-            style={{ padding: "20px", boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}
-          >
-            <div className="flex items-center" style={{ gap: "12px" }}>
+            <div className="flex items-center" style={{ gap: "14px" }}>
               <div
-                className="flex items-center justify-center rounded-xl shrink-0"
-                style={{ width: 40, height: 40, background: "#E3F2FD" }}
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "14px",
+                  background: "linear-gradient(135deg, #E3F2FD, #BBDEFB)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  boxShadow: "0 4px 14px rgba(33,150,243,0.18)",
+                }}
               >
-                <Cloud size={18} style={{ color: "#2196F3" }} />
+                <Cloud size={20} style={{ color: "#2196F3" }} />
               </div>
               <div>
                 <p
-                  className="font-bold"
-                  style={{ fontSize: "15px", color: "#2196F3" }}
+                  style={{
+                    fontFamily: "'Figtree', sans-serif",
+                    fontSize: "16px",
+                    fontWeight: 800,
+                  }}
                 >
-                  VARIANT
+                  <span style={{ color: "#90CAF9", fontWeight: 600 }}>VAR</span>
+                  <span style={{ color: "#0D47A1", fontWeight: 900 }}>
+                    IANT
+                  </span>
                 </p>
-                <p style={{ fontSize: "12px", color: "#9E9E9E" }}>
-                  Question Generator · v2.0
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "#90A4AE",
+                    marginTop: "2px",
+                  }}
+                >
+                  Question Generator · v6.0
                 </p>
               </div>
             </div>
             <p
               style={{
                 fontSize: "12px",
-                color: "#BDBDBD",
+                color: "#B0BEC5",
                 lineHeight: 1.7,
                 marginTop: "16px",
               }}
             >
-              Generate multiple-choice question variants from any math question.
-              Customize integer, decimal, and fraction output modes.
+              Generate mathematically consistent MCQ variants from any
+              Quantitative Aptitude question. Powered by smart classification,
+              logical solvers, and the Rule of 4 distractor engine.
             </p>
           </div>
         </motion.div>
 
         {/* Branding */}
         <div className="text-center" style={{ paddingBottom: "16px" }}>
-          <p style={{ fontSize: "11px", color: "#BDBDBD" }}>
+          <p style={{ fontSize: "11px", color: "#B0BEC5" }}>
             © {new Date().getFullYear()}. Built with{" "}
             <span style={{ color: "#F44336" }}>♥</span> using{" "}
             <a
               href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{ color: "#9E9E9E" }}
+              style={{ color: "#90A4AE" }}
             >
               caffeine.ai
             </a>

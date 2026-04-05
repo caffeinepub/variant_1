@@ -16,7 +16,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ["Plus Jakarta Sans", "system-ui", "sans-serif"],
+        sans: ["Figtree", "Inter", "system-ui", "sans-serif"],
+        figtree: ["Figtree", "sans-serif"],
+        display: ["Figtree", "sans-serif"],
       },
       colors: {
         border: "oklch(var(--border))",
@@ -72,16 +74,21 @@ export default {
       },
       borderRadius: {
         lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-        xl: "1rem",
-        "2xl": "1.25rem",
+        md: "calc(var(--radius) - 4px)",
+        sm: "calc(var(--radius) - 8px)",
+        xl: "1.25rem",
+        "2xl": "1.5rem",
+        "3xl": "2rem",
+        pill: "50px",
       },
       boxShadow: {
         xs: "0 1px 2px 0 rgba(0,0,0,0.05)",
-        float: "0 2px 8px rgba(0,0,0,0.08)",
-        card: "0 4px 16px rgba(0,0,0,0.08)",
-        "card-sm": "0 2px 8px rgba(0,0,0,0.06)",
+        float: "0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05)",
+        card: "0 6px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04)",
+        "card-sm": "0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04)",
+        btn: "0 4px 12px rgba(33,150,243,0.20), 0 1px 3px rgba(0,0,0,0.08)",
+        "btn-primary": "0 6px 20px rgba(33,150,243,0.35), 0 2px 6px rgba(0,0,0,0.10)",
+        inset: "inset 0 2px 8px rgba(0,0,0,0.07), 0 0 0 1.5px #E3EAF3",
       },
       keyframes: {
         "accordion-down": {

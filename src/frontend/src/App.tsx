@@ -4,7 +4,7 @@ import { SettingsScreen } from "@/components/SettingsScreen";
 import { VariantScreen } from "@/components/VariantScreen";
 import { Toaster } from "@/components/ui/sonner";
 import { generateVariants } from "@/lib/variantEngine";
-import type { GeneratedVariant, Settings } from "@/lib/variantEngine";
+import type { Settings, VariantQuestion } from "@/lib/variantEngine";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   FolderOpen,
@@ -27,8 +27,9 @@ type Tab = "generate" | "variant" | "drill" | "settings";
 
 function AppInner() {
   const [activeTab, setActiveTab] = useState<Tab>("generate");
-  const [variants, setVariants] = useState<GeneratedVariant[]>([]);
+  const [variants, setVariants] = useState<VariantQuestion[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
+  const [prefillQuestion, setPrefillQuestion] = useState("");
   const { actor } = useActor();
   const { identity } = useInternetIdentity();
 
@@ -73,6 +74,11 @@ function AppInner() {
     }
   }
 
+  function handleNavigateToGenerate(questionText: string) {
+    setPrefillQuestion(questionText);
+    setActiveTab("generate");
+  }
+
   const tabs: { id: Tab; label: string; Icon: React.ElementType }[] = [
     { id: "generate", label: "Generate", Icon: Home },
     { id: "variant", label: "Variant", Icon: FolderOpen },
@@ -83,7 +89,7 @@ function AppInner() {
   return (
     <div
       className="min-h-screen flex justify-center"
-      style={{ backgroundColor: "#F5F7FA" }}
+      style={{ backgroundColor: "transparent" }}
     >
       <div
         className="w-full relative flex flex-col"
@@ -107,6 +113,7 @@ function AppInner() {
                   onGenerate={handleGenerate}
                   currentQuestion={currentQuestion}
                   variants={variants}
+                  prefillQuestion={prefillQuestion}
                 />
               </motion.div>
             )}
@@ -118,7 +125,9 @@ function AppInner() {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.22, ease: "easeOut" }}
               >
-                <VariantScreen />
+                <VariantScreen
+                  onNavigateToGenerate={handleNavigateToGenerate}
+                />
               </motion.div>
             )}
             {activeTab === "drill" && (
@@ -129,7 +138,7 @@ function AppInner() {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.22, ease: "easeOut" }}
               >
-                <DrillScreen variants={variants} />
+                <DrillScreen />
               </motion.div>
             )}
             {activeTab === "settings" && (
@@ -156,8 +165,10 @@ function AppInner() {
             width: "100%",
             maxWidth: "480px",
             height: "70px",
-            backgroundColor: "#FFFFFF",
-            borderTop: "1px solid #EEEEEE",
+            backgroundColor: "rgba(255,255,255,0.95)",
+            backdropFilter: "blur(12px)",
+            borderTop: "1px solid #E3EAF3",
+            boxShadow: "0 -4px 20px rgba(0,0,0,0.06)",
             zIndex: 9999,
             display: "flex",
             alignItems: "center",
@@ -172,7 +183,7 @@ function AppInner() {
                 type="button"
                 onClick={() => setActiveTab(id)}
                 data-ocid={`nav.${id}.tab`}
-                className="flex flex-col items-center justify-center flex-1 h-full transition-colors"
+                className="flex flex-col items-center justify-center flex-1 h-full transition-all"
                 style={{
                   gap: "3px",
                   color: isActive ? "#2196F3" : "#9E9E9E",
@@ -181,16 +192,30 @@ function AppInner() {
                   cursor: "pointer",
                 }}
               >
-                <Icon
-                  size={22}
-                  strokeWidth={isActive ? 2.2 : 1.8}
-                  color={isActive ? "#2196F3" : "#9E9E9E"}
-                />
+                <div
+                  style={{
+                    width: "36px",
+                    height: "28px",
+                    borderRadius: "50px",
+                    background: isActive ? "#E3F2FD" : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <Icon
+                    size={20}
+                    strokeWidth={isActive ? 2.4 : 1.8}
+                    color={isActive ? "#2196F3" : "#9E9E9E"}
+                  />
+                </div>
                 <span
                   style={{
-                    fontSize: "11px",
+                    fontSize: "10px",
                     fontWeight: isActive ? 700 : 500,
                     color: isActive ? "#2196F3" : "#9E9E9E",
+                    fontFamily: "'Figtree', sans-serif",
                   }}
                 >
                   {label}

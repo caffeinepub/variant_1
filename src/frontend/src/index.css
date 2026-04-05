@@ -2,109 +2,145 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Figtree font ── */
 @font-face {
-  font-family: "Plus Jakarta Sans";
-  src: url("/assets/fonts/PlusJakartaSans.woff2") format("woff2");
-  font-weight: 300 700;
+  font-family: "Figtree";
+  src: url("/assets/fonts/Figtree.woff2") format("woff2");
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
+html,
+body,
+#root {
+  background-color: #f8fafc !important;
+}
+
+/* ── Blueprint dot-grid background ── */
+body {
+  background-color: #f8fafc;
+  background-image: radial-gradient(
+    circle,
+    rgba(147, 197, 253, 0.3) 1.5px,
+    transparent 1.5px
+  );
+  background-size: 24px 24px;
+  background-attachment: fixed;
+}
+
 @layer base {
   :root {
-    --radius: 0.75rem;
-
-    /* Background: off-white #F5F7FA */
-    --background: 0.972 0.006 240;
-
-    /* Foreground: near-black */
-    --foreground: 0.198 0.025 258.6;
-
-    /* Cards: white */
+    --background: 0.978 0.003 247;
+    --foreground: 0.18 0.02 250;
     --card: 1 0 0;
-    --card-foreground: 0.198 0.025 258.6;
-
-    /* Popover */
+    --card-foreground: 0.18 0.02 250;
     --popover: 1 0 0;
-    --popover-foreground: 0.198 0.025 258.6;
-
-    /* Primary: #2196F3 brand blue */
-    --primary: 0.62 0.178 238;
+    --popover-foreground: 0.18 0.02 250;
+    --primary: 0.576 0.175 249;
     --primary-foreground: 1 0 0;
-
-    /* Secondary: light grey */
-    --secondary: 0.957 0.012 240;
-    --secondary-foreground: 0.198 0.025 258.6;
-
-    /* Muted */
-    --muted: 0.957 0.012 240;
-    --muted-foreground: 0.511 0.015 256;
-
-    /* Accent */
-    --accent: 0.94 0.018 240;
-    --accent-foreground: 0.198 0.025 258.6;
-
-    /* Destructive */
-    --destructive: 0.577 0.245 27.325;
+    --secondary: 0.955 0.012 247;
+    --secondary-foreground: 0.18 0.02 250;
+    --muted: 0.955 0.012 247;
+    --muted-foreground: 0.52 0.025 250;
+    --accent: 0.93 0.022 247;
+    --accent-foreground: 0.18 0.02 250;
+    --destructive: 0.577 0.245 27;
     --destructive-foreground: 1 0 0;
-
-    /* Borders */
-    --border: 0.918 0.006 250;
-    --input: 0.918 0.006 250;
-    --ring: 0.62 0.178 238;
-
-    /* Chart */
-    --chart-1: 0.62 0.178 238;
-    --chart-2: 0.6 0.118 184.704;
-    --chart-3: 0.398 0.07 227.392;
-    --chart-4: 0.828 0.189 84.429;
-    --chart-5: 0.769 0.188 70.08;
-
-    /* Sidebar */
-    --sidebar: 1 0 0;
-    --sidebar-foreground: 0.198 0.025 258.6;
-    --sidebar-primary: 0.62 0.178 238;
+    --border: 0.91 0.018 250;
+    --input: 0.91 0.018 250;
+    --ring: 0.576 0.175 249;
+    --radius: 1.5rem;
+    --chart-1: 0.646 0.222 41;
+    --chart-2: 0.6 0.118 184;
+    --chart-3: 0.398 0.07 227;
+    --chart-4: 0.828 0.189 84;
+    --chart-5: 0.769 0.188 70;
+    --sidebar: 0.955 0.012 247;
+    --sidebar-foreground: 0.18 0.02 250;
+    --sidebar-primary: 0.576 0.175 249;
     --sidebar-primary-foreground: 1 0 0;
-    --sidebar-accent: 0.957 0.012 240;
-    --sidebar-accent-foreground: 0.198 0.025 258.6;
-    --sidebar-border: 0.918 0.006 250;
-    --sidebar-ring: 0.62 0.178 238;
-  }
-
-  * {
-    @apply border-border;
-  }
-
-  html,
-  body {
-    background-color: #f5f7fa;
-  }
-
-  body {
-    @apply text-foreground;
-    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    --sidebar-accent: 0.93 0.022 247;
+    --sidebar-accent-foreground: 0.18 0.02 250;
+    --sidebar-border: 0.91 0.018 250;
+    --sidebar-ring: 0.576 0.175 249;
   }
 }
 
-@layer utilities {
-  .dashed-input {
-    border: 1px dashed #cccccc;
-    border-radius: 16px;
-    background: #ffffff;
+@layer base {
+  * {
+    @apply border-border;
   }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Figtree", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: "Figtree", sans-serif;
+  }
+}
 
-  .card-shadow {
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  }
+/* ── Soft UI slider ── */
+input[type="range"].soft-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 50px;
+  background: linear-gradient(
+    to right,
+    #2196f3 var(--progress, 11%),
+    #d0d8e4 var(--progress, 11%)
+  );
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"].soft-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #42a5f5, #1565c0);
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(33, 150, 243, 0.45), 0 1px 3px rgba(0, 0, 0, 0.2);
+  border: 3px solid white;
+  transition: transform 0.15s ease;
+}
+input[type="range"].soft-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+input[type="range"].soft-slider::-moz-range-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #42a5f5, #1565c0);
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(33, 150, 243, 0.45), 0 1px 3px rgba(0, 0, 0, 0.2);
+  border: 3px solid white;
+}
 
-  .card-shadow-sm {
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  }
+/* ── Soft card styles ── */
+.soft-card {
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.05);
+}
 
-  /* Override switch to use primary blue */
-  [data-slot="switch"][data-state="checked"] {
-    background-color: #2196f3 !important;
-  }
+.soft-card-sm {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* ── Solution slab gradient ── */
+.solution-slab {
+  background: linear-gradient(135deg, #e3f2fd, #f0f4ff);
+  border-radius: 16px;
+  border: 1px solid #bbdefb;
+  box-shadow: inset 0 2px 6px rgba(33, 150, 243, 0.08);
 }
