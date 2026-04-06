@@ -40,6 +40,7 @@ function shuffleArray<T>(arr: T[]): T[] {
 
 /**
  * Deduplicate distractors and ensure exactly 3.
+ * Enforces minimum gap so small values don't collapse (e.g. 4 and 4.6 both round to 4).
  * Handles both positive (profit) and negative (loss%) correct values.
  * When correct < 0, all distractors must also be negative (same sign).
  */
@@ -49,56 +50,53 @@ function buildDistractorSet(
   c: ModeConstraint,
 ): number[] {
   const isLoss = correct < 0;
+  const absCorrect = Math.abs(correct);
+  // Minimum gap: at least 1 unit, or 5% of the correct value — whichever is larger
+  // This prevents ±10% from collapsing to the same formatted value on small numbers
+  const minGap = Math.max(1, absCorrect * 0.05);
+
   const correctKey = fmtRaw(correct, c);
   const seen = new Set<string>([correctKey]);
   const result: number[] = [];
 
-  for (const d of distractors) {
-    if (!Number.isFinite(d) || Number.isNaN(d)) continue;
-    // Sign consistency: loss answer → only negative distractors; profit → only positive
-    if (isLoss && d >= 0) continue;
-    if (!isLoss && d <= 0) continue;
+  const isTooClose = (d: number): boolean => {
+    return Math.abs(d - correct) < minGap;
+  };
+
+  const tryAdd = (d: number): boolean => {
+    if (!Number.isFinite(d) || Number.isNaN(d)) return false;
+    if (isLoss && d >= 0) return false;
+    if (!isLoss && d <= 0) return false;
+    if (isTooClose(d)) return false;
     const snapped = snapToMode(d, c);
     const key = fmtRaw(snapped, c);
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push(snapped);
-      if (result.length === 3) return result;
-    }
+    if (seen.has(key)) return false;
+    seen.add(key);
+    result.push(snapped);
+    return true;
+  };
+
+  // Try provided distractors first
+  for (const d of distractors) {
+    tryAdd(d);
+    if (result.length === 3) return result;
   }
 
-  // Fill remaining with offset-based fallbacks (preserving sign)
-  const multipliers = [0.75, 1.25, 1.5, 0.5, 1.1, 0.9, 1.33, 0.67];
+  // Spread multipliers that guarantee minimum gap on reasonably-sized answers
+  const multipliers = [
+    0.75, 1.25, 1.5, 0.6, 1.4, 0.85, 1.15, 0.5, 1.33, 0.67, 2.0, 1.6,
+  ];
   for (const m of multipliers) {
-    const d = snapToMode(correct * m, c);
-    if (!Number.isFinite(d)) continue;
-    if (isLoss && d >= 0) continue;
-    if (!isLoss && d <= 0) continue;
-    const key = fmtRaw(d, c);
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push(d);
-      if (result.length === 3) return result;
-    }
+    tryAdd(correct * m);
+    if (result.length === 3) return result;
   }
 
-  // Integer offsets as last resort (shift around correct, preserving sign)
-  for (let off = 1; result.length < 3 && off <= 100; off++) {
-    // Try both directions
-    for (const candidate of [
-      snapToMode(correct + off * (isLoss ? -1 : 1), c),
-      snapToMode(correct - off * (isLoss ? -1 : 1), c),
-    ]) {
-      if (!Number.isFinite(candidate)) continue;
-      if (isLoss && candidate >= 0) continue;
-      if (!isLoss && candidate <= 0) continue;
-      const key = fmtRaw(candidate, c);
-      if (!seen.has(key)) {
-        seen.add(key);
-        result.push(candidate);
-        if (result.length === 3) break;
-      }
-    }
+  // Integer/unit offsets as last resort (guaranteed minimum gap)
+  const step = Math.max(1, Math.ceil(minGap));
+  for (let off = step; result.length < 3 && off <= step * 200; off += step) {
+    tryAdd(correct + off);
+    if (result.length < 3) tryAdd(correct - off);
+    if (result.length === 3) return result;
   }
 
   return result.slice(0, 3);
@@ -161,13 +159,30 @@ export function buildOptions(
   }
 
   const labels: ("A" | "B" | "C" | "D")[] = ["A", "B", "C", "D"];
-  const allStrings = shuffleArray([correctStr, ...distStrings.slice(0, 3)]);
+  const shuffled = shuffleArray([correctStr, ...distStrings.slice(0, 3)]);
 
-  const options = allStrings.slice(0, 4).map((text, i) => ({
+  // HARD GUARANTEE: correct answer must be in the final 4 options
+  // If shuffle somehow excluded it (impossible by construction, but belt-and-suspenders),
+  // force it into position 0 and drop the last duplicate.
+  const hasCorrect = shuffled.includes(correctStr);
+  const finalStrings = hasCorrect
+    ? shuffled.slice(0, 4)
+    : [correctStr, ...shuffled.filter((s) => s !== correctStr).slice(0, 3)];
+
+  const options = finalStrings.map((text, i) => ({
     label: labels[i] as "A" | "B" | "C" | "D",
     text,
     isCorrect: text === correctStr,
   }));
+
+  // Post-check: verify exactly one correct option exists
+  const correctCount = options.filter((o) => o.isCorrect).length;
+  if (correctCount !== 1) {
+    // Force fix: mark the option with matching text as correct, clear others
+    for (const opt of options) {
+      opt.isCorrect = opt.text === correctStr;
+    }
+  }
 
   const correctLabel = options.find((o) => o.isCorrect)?.label ?? "A";
   return { options, correctLabel, correctAnswer: correctStr };

@@ -1,5 +1,5 @@
 // ============================================================
-// VARIANT ENGINE v11 — 5-Stage Architecture + 3-Layer Hardening
+// VARIANT ENGINE v13 — Per-Variant Option Binding + Minimum-Gap Distractors
 // Stage 1: AI Parser (rule-based, deterministic)
 // Stage 2-4: Dedicated Solvers (formula-first, exact math)
 // Stage 5: Option Generator (topic-aware mistake patterns)
@@ -9,7 +9,7 @@
 
 import { parseQuestion } from "./aiParser";
 import type { ParsedQuestion } from "./aiParser";
-import { buildOptions } from "./optionGenerator";
+import { buildOptions, generateTopicDistractors } from "./optionGenerator";
 import { solvePercentage as solvePercentageNew } from "./solvers/percentageSolver";
 import {
   solveProfitLoss,
@@ -889,12 +889,21 @@ export function generateVariants(
       usedFactors.add(factor);
 
       // Stage 5: Build options using option generator
+      // CRITICAL FIX: regenerate distractors from THIS variant's mutated parsed data
+      // so options are always anchored to this variant's own computed answer — never reused
+      const variantDistractors = generateTopicDistractors(
+        mutated,
+        solved.correct,
+        constraint,
+      );
       const { options, correctLabel, correctAnswer } = buildOptions(
         solved.correct,
-        solved.distractors,
+        variantDistractors.length >= 3
+          ? variantDistractors
+          : solved.distractors,
         constraint,
         solved.unit,
-        baseParsed,
+        mutated,
       );
 
       variants.push({
@@ -937,12 +946,20 @@ export function generateVariants(
 
       existing.add(variantText);
 
+      // CRITICAL FIX: use fallbackParsed (not baseParsed) so distractors match this variant
+      const fallbackDistractors = generateTopicDistractors(
+        fallbackParsed,
+        fallbackSolved.correct,
+        constraint,
+      );
       const { options, correctLabel, correctAnswer } = buildOptions(
         fallbackSolved.correct,
-        fallbackSolved.distractors,
+        fallbackDistractors.length >= 3
+          ? fallbackDistractors
+          : fallbackSolved.distractors,
         constraint,
         fallbackSolved.unit,
-        baseParsed,
+        fallbackParsed,
       );
 
       variants.push({
