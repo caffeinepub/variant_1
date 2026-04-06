@@ -39,10 +39,98 @@ function shuffleArray<T>(arr: T[]): T[] {
 }
 
 /**
+ * Random integer in [min, max] inclusive.
+ */
+function randInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+/**
+ * Generate exactly 3 integer distractors following structured spread rules:
+ *
+ * Tier by answer magnitude:
+ *   < 20  → close ±3–5, medium ±6–10, far ±(min 11, max 10 above absC)
+ *   20–100 → close ±3–5, medium ±8–15, far ±18–28
+ *   > 100 → close ±5%, medium ±10–15%, far ±20–25%
+ *
+ * Rules:
+ * - All distractors are integers of the same sign as `correct`
+ * - Each must differ from `correct` and from each other by at least 2
+ * - No extreme values (result always positive if correct positive)
+ */
+function generateIntegerDistractors(correct: number): number[] {
+  const isNeg = correct < 0;
+  const absC = Math.abs(correct);
+
+  // Compute 3 raw unsigned offsets: close, medium, far
+  let closeOff: number;
+  let medOff: number;
+  let farOff: number;
+
+  if (absC < 20) {
+    closeOff = randInt(3, 5);
+    medOff = randInt(6, 10);
+    // far is at least 11 but capped so the result isn't 0 or negative
+    farOff = randInt(
+      11,
+      Math.max(11, Math.min(Math.round(absC * 0.9) + 2, absC + 10)),
+    );
+  } else if (absC <= 100) {
+    closeOff = randInt(3, 5);
+    medOff = randInt(8, 15);
+    farOff = randInt(18, 28);
+  } else {
+    // Percentage-based for large numbers
+    closeOff = Math.round(absC * (randInt(4, 6) / 100));
+    medOff = Math.round(absC * (randInt(10, 15) / 100));
+    farOff = Math.round(absC * (randInt(20, 25) / 100));
+  }
+
+  // Ensure minimum spacing between offset tiers (at least 2 apart)
+  if (medOff <= closeOff + 1) medOff = closeOff + 2;
+  if (farOff <= medOff + 1) farOff = medOff + 2;
+
+  // Each offset is randomly + or -, keeping the result positive (same sign as correct)
+  const applyOffset = (base: number, off: number): number => {
+    const sign = Math.random() < 0.5 ? 1 : -1;
+    const candidate = base + sign * off;
+    // If negative result when answer is positive, flip sign
+    if (candidate <= 0 && base > 0) return base + off;
+    // If positive result when answer is negative (loss%), flip sign
+    if (candidate >= 0 && base < 0) return base - off;
+    return candidate;
+  };
+
+  const rawClose = applyOffset(absC, closeOff);
+  const rawMed = applyOffset(absC, medOff);
+  const rawFar = applyOffset(absC, farOff);
+
+  // Round to integers and ensure they differ from each other by at least 2
+  const candidates = [rawClose, rawMed, rawFar].map(Math.round);
+
+  // Deduplicate: if two candidates are too close, nudge the later one
+  for (let i = 1; i < candidates.length; i++) {
+    for (let j = 0; j < i; j++) {
+      if (Math.abs(candidates[i] - candidates[j]) < 2) {
+        candidates[i] = candidates[j] + 2;
+      }
+    }
+    // Also ensure no distractor equals absC
+    if (Math.abs(candidates[i] - absC) < 2) {
+      candidates[i] = absC + (i + 1) * 2;
+    }
+  }
+
+  // Re-apply sign
+  return candidates.map((v) => (isNeg ? -Math.abs(v) : Math.abs(v)));
+}
+
+/**
  * Deduplicate distractors and ensure exactly 3.
- * Enforces minimum gap so small values don't collapse (e.g. 4 and 4.6 both round to 4).
+ * For INTEGER mode: uses structured close/medium/far additive offsets.
+ * For FRACTION/DECIMAL modes: uses percentage-based multipliers (original logic).
+ * Enforces minimum gap so small values don't collapse.
  * Handles both positive (profit) and negative (loss%) correct values.
- * When correct < 0, all distractors must also be negative (same sign).
  */
 function buildDistractorSet(
   correct: number,
@@ -50,9 +138,48 @@ function buildDistractorSet(
   c: ModeConstraint,
 ): number[] {
   const isLoss = correct < 0;
+
+  // ── INTEGER MODE: structured spread additive offsets ────────
+  if (c.mode === "integer") {
+    const structured = generateIntegerDistractors(correct);
+    const result: number[] = [];
+    const correctKey = fmtRaw(correct, c);
+    const seen = new Set<string>([correctKey]);
+
+    // Try structured distractors first, then any topic-specific ones as fallback
+    for (const d of [...structured, ...distractors]) {
+      if (result.length === 3) break;
+      if (!Number.isFinite(d) || Number.isNaN(d)) continue;
+      if (isLoss && d >= 0) continue;
+      if (!isLoss && d <= 0) continue;
+      const rounded = Math.round(d);
+      if (Math.abs(rounded - correct) < 2) continue;
+      const key = fmtRaw(rounded, c);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(rounded);
+    }
+
+    // Fallback: step outward if still short
+    let step = 3;
+    while (result.length < 3 && step <= 200) {
+      const v = Math.round(correct) + (isLoss ? -step : step);
+      if (Math.abs(v - correct) >= 2) {
+        const key = fmtRaw(v, c);
+        if (!seen.has(key) && (isLoss ? v < 0 : v > 0)) {
+          seen.add(key);
+          result.push(v);
+        }
+      }
+      step += 2;
+    }
+
+    return result.slice(0, 3);
+  }
+
+  // ── FRACTION / DECIMAL MODE: original multiplier logic ──────
   const absCorrect = Math.abs(correct);
   // Minimum gap: at least 1 unit, or 5% of the correct value — whichever is larger
-  // This prevents ±10% from collapsing to the same formatted value on small numbers
   const minGap = Math.max(1, absCorrect * 0.05);
 
   const correctKey = fmtRaw(correct, c);
@@ -91,7 +218,7 @@ function buildDistractorSet(
     if (result.length === 3) return result;
   }
 
-  // Integer/unit offsets as last resort (guaranteed minimum gap)
+  // Integer/unit offsets as last resort
   const step = Math.max(1, Math.ceil(minGap));
   for (let off = step; result.length < 3 && off <= step * 200; off += step) {
     tryAdd(correct + off);
@@ -162,8 +289,6 @@ export function buildOptions(
   const shuffled = shuffleArray([correctStr, ...distStrings.slice(0, 3)]);
 
   // HARD GUARANTEE: correct answer must be in the final 4 options
-  // If shuffle somehow excluded it (impossible by construction, but belt-and-suspenders),
-  // force it into position 0 and drop the last duplicate.
   const hasCorrect = shuffled.includes(correctStr);
   const finalStrings = hasCorrect
     ? shuffled.slice(0, 4)
@@ -178,7 +303,6 @@ export function buildOptions(
   // Post-check: verify exactly one correct option exists
   const correctCount = options.filter((o) => o.isCorrect).length;
   if (correctCount !== 1) {
-    // Force fix: mark the option with matching text as correct, clear others
     for (const opt of options) {
       opt.isCorrect = opt.text === correctStr;
     }
@@ -198,6 +322,11 @@ export function generateTopicDistractors(
   correct: number,
   c: ModeConstraint,
 ): number[] {
+  // In integer mode, all topics use the same structured spread helper
+  if (c.mode === "integer") {
+    return generateIntegerDistractors(correct);
+  }
+
   switch (parsed.topic) {
     case "work_wages":
       return generateWorkWagesDistractors(
@@ -246,7 +375,6 @@ function generateProfitLossDistractors(
 ): number[] {
   // For loss (correct < 0): nearby loss% values
   // For profit (correct > 0): nearby profit% values
-  // All must share the same sign as correct
   return [
     snapToMode(correct + 5, c), // off by +5%
     snapToMode(correct - 5, c), // off by -5%

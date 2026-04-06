@@ -2,11 +2,13 @@ import { DrillScreen } from "@/components/DrillScreen";
 import { GenerateScreen } from "@/components/GenerateScreen";
 import { SettingsScreen } from "@/components/SettingsScreen";
 import { VariantScreen } from "@/components/VariantScreen";
+import { VocabScreen } from "@/components/VocabScreen";
 import { Toaster } from "@/components/ui/sonner";
 import { generateVariants } from "@/lib/variantEngine";
 import type { Settings, VariantQuestion } from "@/lib/variantEngine";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  BookOpen,
   FolderOpen,
   Home,
   Settings as SettingsIcon,
@@ -23,7 +25,7 @@ import {
 
 const queryClient = new QueryClient();
 
-type Tab = "generate" | "variant" | "drill" | "settings";
+type Tab = "generate" | "variant" | "drill" | "vocab" | "settings";
 
 function AppInner() {
   const [activeTab, setActiveTab] = useState<Tab>("generate");
@@ -83,6 +85,7 @@ function AppInner() {
     { id: "generate", label: "Generate", Icon: Home },
     { id: "variant", label: "Variant", Icon: FolderOpen },
     { id: "drill", label: "Drill", Icon: Target },
+    { id: "vocab", label: "Vocab", Icon: BookOpen },
     { id: "settings", label: "Settings", Icon: SettingsIcon },
   ];
 
@@ -143,6 +146,17 @@ function AppInner() {
                 <DrillScreen />
               </motion.div>
             )}
+            {activeTab === "vocab" && (
+              <motion.div
+                key="vocab"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+              >
+                <VocabScreen />
+              </motion.div>
+            )}
             {activeTab === "settings" && (
               <motion.div
                 key="settings"
@@ -190,7 +204,7 @@ function AppInner() {
                 data-ocid={`nav.${id}.tab`}
                 className="flex flex-col items-center justify-center flex-1 transition-all"
                 style={{
-                  gap: "3px",
+                  gap: "2px",
                   height: "70px",
                   color: isActive ? "#2196F3" : "#9E9E9E",
                   background: "transparent",
@@ -200,8 +214,8 @@ function AppInner() {
               >
                 <div
                   style={{
-                    width: "36px",
-                    height: "28px",
+                    width: "32px",
+                    height: "26px",
                     borderRadius: "50px",
                     background: isActive ? "#E3F2FD" : "transparent",
                     display: "flex",
@@ -211,14 +225,14 @@ function AppInner() {
                   }}
                 >
                   <Icon
-                    size={20}
+                    size={18}
                     strokeWidth={isActive ? 2.4 : 1.8}
                     color={isActive ? "#2196F3" : "#9E9E9E"}
                   />
                 </div>
                 <span
                   style={{
-                    fontSize: "10px",
+                    fontSize: "9px",
                     fontWeight: isActive ? 700 : 500,
                     color: isActive ? "#2196F3" : "#9E9E9E",
                     fontFamily: "'Figtree', sans-serif",
