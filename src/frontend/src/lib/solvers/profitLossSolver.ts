@@ -1,14 +1,24 @@
 // ============================================================
 // PROFIT & LOSS SOLVER
 // Handles: standard, cheat/weight fraud, successive discounts, free items
+//
+// FREE ITEMS — DUAL MODE:
+//   MODE A (find profit%): markup + discount given → compute profit%
+//   MODE B (find markup%): discount + profit_target given → solve for markup%
+//
+//   UNIFIED EQUATION:
+//     Total SP = items_paid × MP × (1 - discount/100)
+//     Total CP = total_items_given × cp
+//     profit_factor = Total SP / Total CP
+//     → MP/CP = profit_factor × total_items / (items_paid × (1 - discount/100))
+//     → markup% = (MP/CP - 1) × 100
+//
 // PARAMETER CONSTRAINTS enforced before any computation:
 //   - discount_pct must be < 100 (otherwise SP goes negative)
 //   - markup_pct must be >= 0
 //   - selling_fraction must be > 0 and <= 1
 //   - buying_fraction must be > 0
 // Loss% results are ALLOWED — do NOT force positive.
-// MARKUP FIX: Always compute MP/CP ratio first; markup% = (MP/CP - 1) * 100
-// FREE ITEMS: Effective CP = (y + x) / y * CP per item
 // ============================================================
 
 import type { ProfitLossParams } from "../aiParser";
@@ -22,14 +32,6 @@ export interface ParamValidationResult {
   reason?: string;
 }
 
-/**
- * Validates profit/loss parameters BEFORE solving.
- * Returns invalid if any parameter would produce an impossible question:
- *   - Discount >= 100% → SP would be zero or negative
- *   - Selling fraction <= 0 → division by zero or negative SP
- *   - Buying fraction <= 0 → division by zero
- *   - Markup < 0 → undefined behavior
- */
 export function validateProfitLossParams(
   params: ProfitLossParams,
 ): ParamValidationResult {
@@ -40,7 +42,6 @@ export function validateProfitLossParams(
     selling_fraction = 1,
   } = params;
 
-  // Rule 1: discount must be strictly less than 100%
   if (discount_pct !== undefined && discount_pct >= 100) {
     return {
       valid: false,
@@ -48,15 +49,10 @@ export function validateProfitLossParams(
     };
   }
 
-  // Rule 2: markup must be >= 0
   if (markup_pct < 0) {
-    return {
-      valid: false,
-      reason: `Markup ${markup_pct}% cannot be negative`,
-    };
+    return { valid: false, reason: `Markup ${markup_pct}% cannot be negative` };
   }
 
-  // Rule 3: fractions must be (0, 1]
   if (selling_fraction <= 0 || selling_fraction > 1) {
     return {
       valid: false,
@@ -70,7 +66,6 @@ export function validateProfitLossParams(
     };
   }
 
-  // Rule 4: compute the selling price and verify it's > 0
   const cp = params.cp ?? 100;
   const mp = cp * (1 + markup_pct / 100);
   const sp = discount_pct !== undefined ? mp * (1 - discount_pct / 100) : mp;
@@ -82,7 +77,6 @@ export function validateProfitLossParams(
     };
   }
 
-  // Rule 5: real SP (after selling cheat) must be > 0
   const realSP = sp / selling_fraction;
   if (realSP <= 0) {
     return {
@@ -100,7 +94,6 @@ export function solveProfitLoss(
   params: ProfitLossParams,
   c: ModeConstraint,
 ): SolveResult {
-  // Validate parameters FIRST — reject before any math runs
   if (params.subtype !== "free_items") {
     const validation = validateProfitLossParams(params);
     if (!validation.valid) {
@@ -121,20 +114,24 @@ export function solveProfitLoss(
 }
 
 /**
- * FREE ITEMS:
- *   If x items free on every y purchased:
- *   Total items given = y + x
- *   Effective CP per unit = (y + x)/y * CP_per_unit  (pays for y+x, gets y+x)
- *   OR: pays for y, gets y+x  → effective CP per item received = y/(y+x) * CP
+ * FREE ITEMS — handles two sub-cases:
  *
- *   The correct interpretation:
- *   - Dealer BUYS (y+x) items but SELLS only y at SP each
- *   - Total CP = (y+x) * cp_per_item
- *   - Total SP = y * SP_per_item  where SP = CP * (1 + markup/100) * (1 - discount/100)
- *   - Profit% = (Total SP - Total CP) / Total CP * 100
+ * CASE A: asked === "markup" (or profit_target is given)
+ *   Given: discount%, free item count (x free on y), profit_target%
+ *   Find:  markup%
  *
- *   MARKUP QUESTION: asked for markup% to achieve desired profit%
- *   - If markup_pct is 0 and discount_pct is 0, solve for profit% directly
+ *   Unified equation:
+ *     Total SP = y × MP × (1 - discount/100)     [customer pays for y, each at discounted MP]
+ *     Total CP = (y + x) × cp                     [dealer gives y+x items]
+ *     profit_factor = 1 + profit_target/100
+ *     profit_factor = Total SP / Total CP
+ *     → MP/CP = profit_factor × (y+x) / (y × (1 - discount/100))
+ *     → markup% = (MP/CP - 1) × 100
+ *
+ * CASE B: markup% and discount% are given, find profit%
+ *   Total SP = y × cp × (1 + markup/100) × (1 - discount/100)
+ *   Total CP = (y + x) × cp
+ *   profit% = (Total SP / Total CP - 1) × 100
  */
 function solveFreeItems(
   params: ProfitLossParams,
@@ -146,16 +143,63 @@ function solveFreeItems(
     discount_pct,
     free_items_given: x = 1,
     free_items_on: y = 9,
-  } = params;
+    profit_target,
+    asked,
+  } = params as ProfitLossParams & { profit_target?: number; asked?: string };
 
-  // Clamp discount
   const discount = discount_pct !== undefined ? Math.min(99, discount_pct) : 0;
+  const totalItems = y + x;
+  const discountFactor = 1 - discount / 100;
 
-  const spPerItem = cp * (1 + markup_pct / 100) * (1 - discount / 100);
+  // CASE A: Find markup% (question gives discount + free items + target profit)
+  const isMarkupAsked =
+    asked === "markup" ||
+    (profit_target !== undefined && profit_target > 0 && markup_pct === 0);
 
-  const totalCP = (y + x) * cp;
+  if (isMarkupAsked && profit_target !== undefined) {
+    const profitFactor = 1 + profit_target / 100;
+    // MP/CP = profitFactor × totalItems / (y × discountFactor)
+    const mpCpRatio = (profitFactor * totalItems) / (y * discountFactor);
+    const markupPct = (mpCpRatio - 1) * 100;
+
+    if (markupPct <= 0) {
+      throw new Error(
+        `Computed markup = ${markupPct.toFixed(2)}% is not positive — question is impossible with these values`,
+      );
+    }
+
+    const correct = snapToMode(markupPct, c);
+
+    // Generate solution steps
+    const totalSP = y * cp * mpCpRatio * discountFactor;
+    const totalCP = totalItems * cp;
+    const verifyProfit = ((totalSP - totalCP) / totalCP) * 100;
+
+    return {
+      correct,
+      distractors: [],
+      unit: "%",
+      solution: {
+        phase1: [
+          `CP per item = ₹${cp}`,
+          `Free items: ${x} free on ${y} → total given = ${totalItems}`,
+          `Discount = ${discount}%`,
+          `Target profit = ${profit_target}%`,
+        ].join(", "),
+        phase2: [
+          `profit_factor = 1 + ${profit_target}/100 = ${profitFactor}`,
+          `MP/CP = ${profitFactor} × ${totalItems} / (${y} × ${discountFactor.toFixed(4)})`,
+          `MP/CP = ${mpCpRatio.toFixed(4)}`,
+        ].join(" | "),
+        phase3: `Markup% = (MP/CP − 1) × 100 = (${mpCpRatio.toFixed(4)} − 1) × 100 = ${markupPct.toFixed(2)}% ✓ Verify: profit = ${verifyProfit.toFixed(1)}%`,
+      },
+    };
+  }
+
+  // CASE B: Find profit% (markup + discount given)
+  const spPerItem = cp * (1 + markup_pct / 100) * discountFactor;
+  const totalCP = totalItems * cp;
   const totalSP = y * spPerItem;
-
   const profit = totalSP - totalCP;
   const profitPct = (profit / totalCP) * 100;
   const isLoss = profit < 0;
@@ -169,15 +213,15 @@ function solveFreeItems(
     solution: {
       phase1: [
         `CP per item = ₹${cp}`,
-        `Free items: ${x} free on every ${y} (total given = ${y + x})`,
+        `Free items: ${x} free on ${y} (total given = ${totalItems})`,
         markup_pct > 0 ? `Markup = ${markup_pct}%` : "",
         discount > 0 ? `Discount = ${discount}%` : "",
       ]
         .filter(Boolean)
         .join(", "),
       phase2: [
-        `SP per item = ₹${cp} × ${1 + markup_pct / 100}${discount > 0 ? ` × ${(1 - discount / 100).toFixed(2)}` : ""} = ₹${spPerItem.toFixed(2)}`,
-        `Total CP = ${y + x} × ₹${cp} = ₹${totalCP}`,
+        `SP per item = ₹${cp} × ${1 + markup_pct / 100}${discount > 0 ? ` × ${discountFactor.toFixed(2)}` : ""} = ₹${spPerItem.toFixed(2)}`,
+        `Total CP = ${totalItems} × ₹${cp} = ₹${totalCP}`,
         `Total SP = ${y} × ₹${spPerItem.toFixed(2)} = ₹${totalSP.toFixed(2)}`,
       ].join(" | "),
       phase3: `${isLoss ? "Loss" : "Profit"}% = (${totalSP.toFixed(2)} − ${totalCP}) / ${totalCP} × 100 = ${profitPct.toFixed(2)}%`,
@@ -187,12 +231,9 @@ function solveFreeItems(
 
 /**
  * Standard profit/loss:
- *   MARKUP FIX: Compute MP = CP × (1 + markup/100)
- *   Then markup% = (MP/CP − 1) × 100 (always positive if markup_pct >= 0)
+ *   MP = CP × (1 + markup/100)
  *   SP = MP × (1 − discount/100)
  *   Profit% = (SP − CP) / CP × 100
- *
- * NOTE: profitPct CAN be negative (loss). We do NOT block negative results.
  */
 function solveStandard(
   params: ProfitLossParams,
@@ -204,7 +245,6 @@ function solveStandard(
     cp = Math.max(20, Math.round(cp / 20) * 20);
     markup_pct = Math.max(5, Math.round(markup_pct / 5) * 5);
     if (discount_pct !== undefined) {
-      // Clamp discount to max 95% to keep questions sane in integer mode
       discount_pct = Math.min(
         95,
         Math.max(5, Math.round(discount_pct / 5) * 5),
@@ -212,11 +252,9 @@ function solveStandard(
     }
   }
 
-  // MARKUP FIX: compute MP/CP ratio first, then derive markup%
   const mpCpRatio = 1 + markup_pct / 100;
   const mp = cp * mpCpRatio;
 
-  // Markup% is always (MP/CP - 1) * 100; must be positive
   const computedMarkupPct = (mpCpRatio - 1) * 100;
   if (computedMarkupPct < 0) {
     throw new Error(
@@ -234,10 +272,9 @@ function solveStandard(
     c,
   );
 
-  // Distractors: common student mistakes — must match sign of correct
-  const d1Raw = markup_pct; // confused markup with profit
-  const d2Raw = discount_pct ?? markup_pct * 0.5; // only used discount
-  const d3Raw = markup_pct - (discount_pct ?? 0); // just subtracted pcts
+  const d1Raw = markup_pct;
+  const d2Raw = discount_pct ?? markup_pct * 0.5;
+  const d3Raw = markup_pct - (discount_pct ?? 0);
 
   const d1 = snapToMode(d1Raw, c);
   const d2 = snapToMode(d2Raw, c);
@@ -257,11 +294,9 @@ function solveStandard(
 
 /**
  * Cheating dealer (weight fraud):
- *   Real CP = CP / buying_fraction   (buys more than stated)
- *   Real SP = SP / selling_fraction  (sells less than stated)
+ *   Real CP = CP / buying_fraction
+ *   Real SP = SP / selling_fraction
  *   Profit% = (Real_SP - Real_CP) / Real_CP * 100
- *
- * NOTE: result CAN be negative (net loss despite cheating).
  */
 function solveCheatWeight(
   params: ProfitLossParams,
@@ -275,7 +310,6 @@ function solveCheatWeight(
     selling_fraction = 1,
   } = params;
 
-  // MARKUP FIX: compute from ratio
   const mpCpRatio = 1 + markup_pct / 100;
   const mp = cp * mpCpRatio;
   const sp = discount_pct !== undefined ? mp * (1 - discount_pct / 100) : mp;
@@ -289,10 +323,9 @@ function solveCheatWeight(
 
   const correct = snapToMode(profitPct, c);
 
-  // Common mistakes — may be positive or negative depending on what was forgotten
-  const d1Raw = ((sp / selling_fraction - cp) / cp) * 100; // forgot buying cheat
-  const d2Raw = ((sp - cp / buying_fraction) / (cp / buying_fraction)) * 100; // forgot selling cheat
-  const d3Raw = markup_pct; // used markup directly as profit
+  const d1Raw = ((sp / selling_fraction - cp) / cp) * 100;
+  const d2Raw = ((sp - cp / buying_fraction) / (cp / buying_fraction)) * 100;
+  const d3Raw = markup_pct;
 
   const d1 = snapToMode(d1Raw, c);
   const d2 = snapToMode(d2Raw, c);
@@ -327,7 +360,6 @@ function solveSuccessiveDiscount(
 
   const correct = snapToMode(discount, c);
 
-  // Mistakes:
   const d1_mistake = snapToMode((cp * ((d1 ?? 0) + (d2 ?? 0))) / 100, c);
   const d2_mistake = snapToMode((cp * (d1 ?? 0)) / 100, c);
   const d3_mistake = snapToMode(sp, c);
@@ -344,12 +376,6 @@ function solveSuccessiveDiscount(
   };
 }
 
-/**
- * Dedup distractors.
- * isLoss=true means the correct answer is negative — distractors should also be
- * negative (nearby loss%) so all 4 options are consistent in sign.
- * isLoss=false means all options should be positive.
- */
 function dedup(
   candidates: number[],
   correct: number,
@@ -361,10 +387,7 @@ function dedup(
   const result: number[] = [];
 
   for (const d of candidates) {
-    // Skip NaN/Infinity
     if (!Number.isFinite(d)) continue;
-    // For loss questions: all options should be negative
-    // For profit questions: all options should be positive
     if (isLoss && d >= 0) continue;
     if (!isLoss && d <= 0) continue;
 
@@ -376,14 +399,11 @@ function dedup(
     }
   }
 
-  // Fallback: generate nearby values with the same sign as correct
   let off = 5;
   while (result.length < 3 && off <= 100) {
-    const d = isLoss
-      ? snapToMode(correct + off, c) // correct is negative; adding makes it less negative
-      : snapToMode(correct + off, c);
+    const d = snapToMode(correct + off, c);
     const d2 = isLoss
-      ? snapToMode(correct - off, c) // more negative
+      ? snapToMode(correct - off, c)
       : snapToMode(correct - off > 0 ? correct - off : correct + off * 2, c);
 
     for (const candidate of [d, d2]) {

@@ -47,6 +47,8 @@ export interface ProfitLossParams {
   // Free items: x free on every y purchased
   free_items_given?: number; // x free items
   free_items_on?: number; // on y items purchased
+  profit_target?: number; // target profit% for "find markup" questions
+  asked?: "profit" | "markup"; // what the question is asking for
   subtype:
     | "standard"
     | "cheat_weight"
@@ -362,6 +364,26 @@ function parseProfitLoss(text: string): ProfitLossParams | null {
     const discountMatch = norm.match(/discount[^\d]*(\d+(?:\.\d+)?)\s*%/i);
     const markup = markupMatch ? Number.parseFloat(markupMatch[1]) : 0;
     const discount = discountMatch ? Number.parseFloat(discountMatch[1]) : 0;
+
+    // Detect "find markup" intent: question gives discount + profit target
+    // and asks for markup%.
+    // Keywords: "what markup", "percent above cp", "mark up", "find the markup",
+    //           "what should the markup be", question contains profit% but no markup%
+    const isMarkupQuestion =
+      /(?:find|what|calculate|determine)\s+(?:the\s+)?(?:markup|mark\s*up|mark(?:ed)?\s*price\s*above|percentage\s*above\s*cp)/i.test(
+        lower,
+      ) ||
+      (/markup|mark\s*up|marked\s*up/i.test(lower) && !markupMatch) ||
+      (!markupMatch && discountMatch && /profit/i.test(lower));
+
+    // Extract profit target if present (e.g. "wants a profit of 30%", "gain 30%")
+    const profitTargetMatch =
+      norm.match(/(?:profit|gain)\s+(?:of\s+)?(\d+(?:\.\d+)?)\s*%/i) ||
+      norm.match(/(\d+(?:\.\d+)?)\s*%\s*(?:profit|gain)/i);
+    const profitTarget = profitTargetMatch
+      ? Number.parseFloat(profitTargetMatch[1])
+      : undefined;
+
     return {
       topic: "profit_loss",
       cp,
@@ -369,6 +391,11 @@ function parseProfitLoss(text: string): ProfitLossParams | null {
       discount_pct: discount > 0 ? discount : undefined,
       free_items_given: freeGiven,
       free_items_on: paidFor,
+      profit_target: profitTarget,
+      asked:
+        isMarkupQuestion || (profitTarget !== undefined && markup === 0)
+          ? "markup"
+          : "profit",
       subtype: "free_items",
     };
   }
