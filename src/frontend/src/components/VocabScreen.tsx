@@ -6,10 +6,48 @@ import {
   getSavedWords,
   saveWord,
 } from "@/lib/vocabEngine";
-import { BookOpen, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import {
+  BookOpen,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Folder,
+  Trash2,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+
+/* ── Unsplash image fetch ─────────────────────────────── */
+const ACCESS_KEY = "gGRcOLMXbU6HIqzrrKcND9VK1o2PJF7zWxdWXWTRvKM";
+
+async function fetchImage(query: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=1&client_id=${ACCESS_KEY}`,
+    );
+    const data = await res.json();
+    if (data.results && data.results.length > 0) {
+      return data.results[0].urls.small;
+    }
+    return null;
+  } catch (err) {
+    console.error("Image fetch error:", err);
+    return null;
+  }
+}
+
+/** Extract a short folder key from a root string.
+ *  e.g. "abund (Latin: to overflow)" → "abund"
+ *       "bene (Latin: well) + volens (Latin: wishing)" → "bene + volens"
+ *       "Old English: swifan (to move)" → "Old English"
+ */
+function extractRootKey(root: string): string {
+  const beforeParen = root.split("(")[0];
+  // Strip trailing " + " or whitespace
+  return beforeParen.replace(/\s*\+\s*$/, "").trim() || root.trim();
+}
 
 /* ── Physical 3D Toggle (local copy) ──────────────────── */
 function PhysicalToggle({
@@ -95,6 +133,144 @@ function SoftSlider({
   );
 }
 
+/* ── Word Card ────────────────────────────────────────── */
+function WordCard({
+  w,
+  index,
+  copiedId,
+  onCopy,
+  onDelete,
+}: {
+  w: SavedWord;
+  index: number;
+  copiedId: string | null;
+  onCopy: (id: string, word: string, meaning: string, root: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const isCopied = copiedId === w.id;
+
+  return (
+    <div
+      data-ocid={`vocab.saved_word.item.${index}`}
+      style={{
+        marginLeft: "18px",
+        marginRight: "18px",
+        background: "#F8FAFC",
+        borderRadius: "16px",
+        padding: "12px 14px",
+        border: "1px solid #E3EAF3",
+      }}
+    >
+      <div className="flex items-start justify-between">
+        <div style={{ flex: 1, marginRight: "10px" }}>
+          <div
+            className="flex items-center"
+            style={{ gap: "8px", marginBottom: "4px" }}
+          >
+            <span
+              style={{
+                fontSize: "14px",
+                fontWeight: 700,
+                color: "#212121",
+                fontFamily: "'Figtree', sans-serif",
+              }}
+            >
+              {w.word}
+            </span>
+            <span
+              style={{
+                fontSize: "9px",
+                fontWeight: 700,
+                color: w.type === "synonym" ? "#2196F3" : "#E91E63",
+                background: w.type === "synonym" ? "#E3F2FD" : "#FCE4EC",
+                borderRadius: "50px",
+                padding: "2px 8px",
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+              }}
+            >
+              {w.type}
+            </span>
+          </div>
+          <p
+            style={{
+              fontSize: "12px",
+              color: "#546E7A",
+              marginBottom: "4px",
+              lineHeight: 1.4,
+            }}
+          >
+            {w.meaning}
+          </p>
+          <span
+            style={{
+              fontSize: "10px",
+              color: "#90A4AE",
+              fontStyle: "italic",
+            }}
+          >
+            {w.root}
+          </span>
+        </div>
+
+        {/* Action buttons row */}
+        <div
+          className="flex items-center"
+          style={{ gap: "6px", flexShrink: 0 }}
+        >
+          {/* Copy button */}
+          <button
+            type="button"
+            onClick={() => onCopy(w.id, w.word, w.meaning, w.root)}
+            data-ocid={`vocab.saved_word.copy_button.${index}`}
+            aria-label={isCopied ? "Copied" : `Copy ${w.word}`}
+            style={{
+              background: isCopied ? "#E8F5E9" : "#E3F2FD",
+              border: "none",
+              cursor: "pointer",
+              borderRadius: "50%",
+              width: "28px",
+              height: "28px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "background 0.2s ease",
+            }}
+          >
+            {isCopied ? (
+              <Check size={12} style={{ color: "#28A745" }} />
+            ) : (
+              <Copy size={12} style={{ color: "#1565C0" }} />
+            )}
+          </button>
+
+          {/* Delete button */}
+          <button
+            type="button"
+            onClick={() => onDelete(w.id)}
+            data-ocid={`vocab.saved_word.delete_button.${index}`}
+            aria-label={`Delete ${w.word}`}
+            style={{
+              background: "#FFEBEE",
+              border: "none",
+              cursor: "pointer",
+              borderRadius: "50%",
+              width: "28px",
+              height: "28px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Trash2 size={12} style={{ color: "#DC3545" }} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Saved Words Section ──────────────────────────────── */
 function SavedWordsSection({
   words,
@@ -104,6 +280,31 @@ function SavedWordsSection({
   onDelete: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"level" | "root">("level");
+  // Track which root folders are expanded
+  const [expandedRoots, setExpandedRoots] = useState<Set<string>>(new Set());
+  // Track copied word id (resets after 1.5s)
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function handleCopy(id: string, word: string, meaning: string, root: string) {
+    const text = `${word}\nMeaning: ${meaning}\nRoot: ${root}`;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1500);
+    });
+  }
+
+  function toggleRootFolder(key: string) {
+    setExpandedRoots((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
 
   const tiers: Array<{
     key: string;
@@ -123,6 +324,20 @@ function SavedWordsSection({
     professional: "#9C27B0",
   };
 
+  // Build root groups
+  const rootGroups: Map<string, SavedWord[]> = new Map();
+  for (const w of words) {
+    const key = extractRootKey(w.root);
+    if (!rootGroups.has(key)) rootGroups.set(key, []);
+    rootGroups.get(key)!.push(w);
+  }
+  const rootEntries = Array.from(rootGroups.entries()).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+
+  // Running index for word cards (deterministic positions across all views)
+  let cardIndex = 0;
+
   return (
     <div
       style={{
@@ -132,6 +347,7 @@ function SavedWordsSection({
         overflow: "hidden",
       }}
     >
+      {/* Section header toggle */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -187,133 +403,391 @@ function SavedWordsSection({
               </div>
             ) : (
               <div style={{ paddingBottom: "18px" }}>
-                {tiers.map(({ key, label, range }) => {
-                  const tierWords = words.filter(
-                    (w) => w.difficulty >= range[0] && w.difficulty <= range[1],
-                  );
-                  if (tierWords.length === 0) return null;
-                  return (
-                    <div key={key} style={{ marginBottom: "16px" }}>
-                      <div
-                        style={{
-                          paddingLeft: "18px",
-                          paddingRight: "18px",
-                          marginBottom: "8px",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: 700,
-                            color: tierColors[key],
-                            textTransform: "uppercase",
-                            letterSpacing: "0.10em",
-                          }}
-                        >
-                          {label}
-                        </span>
-                      </div>
-                      <div className="flex flex-col" style={{ gap: "8px" }}>
-                        {tierWords.map((w, i) => (
+                {/* ── View Mode Toggle Pills ── */}
+                <div
+                  className="flex"
+                  style={{
+                    margin: "0 18px 16px 18px",
+                    background: "#F0F4F8",
+                    borderRadius: "50px",
+                    padding: "4px",
+                    gap: "4px",
+                  }}
+                  data-ocid="vocab.view_mode.toggle"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("level")}
+                    data-ocid="vocab.view_mode.by_level.tab"
+                    style={{
+                      flex: 1,
+                      height: "32px",
+                      borderRadius: "50px",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      fontFamily: "'Figtree', sans-serif",
+                      transition: "all 0.2s ease",
+                      background:
+                        viewMode === "level" ? "#1565C0" : "transparent",
+                      color: viewMode === "level" ? "#ffffff" : "#90A4AE",
+                      boxShadow:
+                        viewMode === "level"
+                          ? "0 2px 8px rgba(21,101,192,0.30)"
+                          : "none",
+                    }}
+                  >
+                    By Level
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("root")}
+                    data-ocid="vocab.view_mode.by_root.tab"
+                    style={{
+                      flex: 1,
+                      height: "32px",
+                      borderRadius: "50px",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      fontFamily: "'Figtree', sans-serif",
+                      transition: "all 0.2s ease",
+                      background:
+                        viewMode === "root" ? "#1565C0" : "transparent",
+                      color: viewMode === "root" ? "#ffffff" : "#90A4AE",
+                      boxShadow:
+                        viewMode === "root"
+                          ? "0 2px 8px rgba(21,101,192,0.30)"
+                          : "none",
+                    }}
+                  >
+                    By Root
+                  </button>
+                </div>
+
+                {/* ── By Level view ── */}
+                {viewMode === "level" && (
+                  <div>
+                    {tiers.map(({ key, label, range }) => {
+                      const tierWords = words.filter(
+                        (w) =>
+                          w.difficulty >= range[0] && w.difficulty <= range[1],
+                      );
+                      if (tierWords.length === 0) return null;
+                      return (
+                        <div key={key} style={{ marginBottom: "16px" }}>
                           <div
-                            key={w.id}
-                            data-ocid={`vocab.saved_word.item.${i + 1}`}
                             style={{
-                              marginLeft: "18px",
-                              marginRight: "18px",
-                              background: "#F8FAFC",
-                              borderRadius: "16px",
-                              padding: "12px 14px",
-                              border: "1px solid #E3EAF3",
+                              paddingLeft: "18px",
+                              paddingRight: "18px",
+                              marginBottom: "8px",
                             }}
                           >
-                            <div className="flex items-start justify-between">
-                              <div style={{ flex: 1, marginRight: "10px" }}>
-                                <div
-                                  className="flex items-center"
-                                  style={{ gap: "8px", marginBottom: "4px" }}
-                                >
-                                  <span
-                                    style={{
-                                      fontSize: "14px",
-                                      fontWeight: 700,
-                                      color: "#212121",
-                                      fontFamily: "'Figtree', sans-serif",
-                                    }}
-                                  >
-                                    {w.word}
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: "9px",
-                                      fontWeight: 700,
-                                      color:
-                                        w.type === "synonym"
-                                          ? "#2196F3"
-                                          : "#E91E63",
-                                      background:
-                                        w.type === "synonym"
-                                          ? "#E3F2FD"
-                                          : "#FCE4EC",
-                                      borderRadius: "50px",
-                                      padding: "2px 8px",
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.06em",
-                                    }}
-                                  >
-                                    {w.type}
-                                  </span>
-                                </div>
-                                <p
-                                  style={{
-                                    fontSize: "12px",
-                                    color: "#546E7A",
-                                    marginBottom: "4px",
-                                    lineHeight: 1.4,
-                                  }}
-                                >
-                                  {w.meaning}
-                                </p>
-                                <span
-                                  style={{
-                                    fontSize: "10px",
-                                    color: "#90A4AE",
-                                    fontStyle: "italic",
-                                  }}
-                                >
-                                  {w.root}
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => onDelete(w.id)}
-                                data-ocid={`vocab.saved_word.delete_button.${i + 1}`}
-                                aria-label={`Delete ${w.word}`}
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: 700,
+                                color: tierColors[key],
+                                textTransform: "uppercase",
+                                letterSpacing: "0.10em",
+                              }}
+                            >
+                              {label}
+                            </span>
+                          </div>
+                          <div className="flex flex-col" style={{ gap: "8px" }}>
+                            {tierWords.map((w) => {
+                              cardIndex += 1;
+                              return (
+                                <WordCard
+                                  key={w.id}
+                                  w={w}
+                                  index={cardIndex}
+                                  copiedId={copiedId}
+                                  onCopy={handleCopy}
+                                  onDelete={onDelete}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── By Root view ── */}
+                {viewMode === "root" && (
+                  <div className="flex flex-col" style={{ gap: "8px" }}>
+                    {rootEntries.map(([rootKey, rootWords]) => {
+                      const isExpanded = expandedRoots.has(rootKey);
+                      return (
+                        <div
+                          key={rootKey}
+                          style={{
+                            marginLeft: "18px",
+                            marginRight: "18px",
+                          }}
+                          data-ocid="vocab.root_folder.panel"
+                        >
+                          {/* Folder header row */}
+                          <button
+                            type="button"
+                            onClick={() => toggleRootFolder(rootKey)}
+                            data-ocid="vocab.root_folder.toggle"
+                            className="w-full flex items-center justify-between"
+                            style={{
+                              background: "#F0F4F8",
+                              border: "1px solid #E3EAF3",
+                              borderRadius: isExpanded
+                                ? "16px 16px 0 0"
+                                : "16px",
+                              padding: "10px 14px",
+                              cursor: "pointer",
+                              transition: "border-radius 0.18s ease",
+                            }}
+                          >
+                            <div
+                              className="flex items-center"
+                              style={{ gap: "8px" }}
+                            >
+                              <Folder
+                                size={14}
+                                style={{ color: "#546E7A", flexShrink: 0 }}
+                              />
+                              <span
                                 style={{
-                                  background: "#FFEBEE",
-                                  border: "none",
-                                  cursor: "pointer",
-                                  borderRadius: "50%",
-                                  width: "28px",
-                                  height: "28px",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  flexShrink: 0,
+                                  fontSize: "13px",
+                                  fontWeight: 700,
+                                  color: "#37474F",
+                                  fontFamily: "'Figtree', sans-serif",
                                 }}
                               >
-                                <Trash2
-                                  size={12}
-                                  style={{ color: "#DC3545" }}
-                                />
-                              </button>
+                                {rootKey}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "10px",
+                                  fontWeight: 700,
+                                  color: "#546E7A",
+                                  background: "#CFD8DC",
+                                  borderRadius: "50px",
+                                  padding: "1px 8px",
+                                }}
+                              >
+                                {rootWords.length}
+                              </span>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                            {isExpanded ? (
+                              <ChevronUp
+                                size={14}
+                                style={{ color: "#90A4AE" }}
+                              />
+                            ) : (
+                              <ChevronDown
+                                size={14}
+                                style={{ color: "#90A4AE" }}
+                              />
+                            )}
+                          </button>
+
+                          {/* Folder contents */}
+                          <AnimatePresence>
+                            {isExpanded && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={{ duration: 0.18 }}
+                                className="overflow-hidden"
+                                style={{
+                                  border: "1px solid #E3EAF3",
+                                  borderTop: "none",
+                                  borderRadius: "0 0 16px 16px",
+                                  background: "#FAFCFF",
+                                }}
+                              >
+                                <div
+                                  className="flex flex-col"
+                                  style={{ gap: "8px", padding: "10px 0" }}
+                                >
+                                  {rootWords.map((w) => {
+                                    cardIndex += 1;
+                                    return (
+                                      <div
+                                        key={w.id}
+                                        data-ocid={`vocab.saved_word.item.${cardIndex}`}
+                                        style={{
+                                          background: "#F8FAFC",
+                                          borderRadius: "12px",
+                                          padding: "12px 14px",
+                                          border: "1px solid #E3EAF3",
+                                          marginLeft: "10px",
+                                          marginRight: "10px",
+                                        }}
+                                      >
+                                        <div className="flex items-start justify-between">
+                                          <div
+                                            style={{
+                                              flex: 1,
+                                              marginRight: "10px",
+                                            }}
+                                          >
+                                            <div
+                                              className="flex items-center"
+                                              style={{
+                                                gap: "8px",
+                                                marginBottom: "4px",
+                                              }}
+                                            >
+                                              <span
+                                                style={{
+                                                  fontSize: "14px",
+                                                  fontWeight: 700,
+                                                  color: "#212121",
+                                                  fontFamily:
+                                                    "'Figtree', sans-serif",
+                                                }}
+                                              >
+                                                {w.word}
+                                              </span>
+                                              <span
+                                                style={{
+                                                  fontSize: "9px",
+                                                  fontWeight: 700,
+                                                  color:
+                                                    w.type === "synonym"
+                                                      ? "#2196F3"
+                                                      : "#E91E63",
+                                                  background:
+                                                    w.type === "synonym"
+                                                      ? "#E3F2FD"
+                                                      : "#FCE4EC",
+                                                  borderRadius: "50px",
+                                                  padding: "2px 8px",
+                                                  textTransform: "uppercase",
+                                                  letterSpacing: "0.06em",
+                                                }}
+                                              >
+                                                {w.type}
+                                              </span>
+                                            </div>
+                                            <p
+                                              style={{
+                                                fontSize: "12px",
+                                                color: "#546E7A",
+                                                marginBottom: "4px",
+                                                lineHeight: 1.4,
+                                              }}
+                                            >
+                                              {w.meaning}
+                                            </p>
+                                            <span
+                                              style={{
+                                                fontSize: "10px",
+                                                color: "#90A4AE",
+                                                fontStyle: "italic",
+                                              }}
+                                            >
+                                              {w.root}
+                                            </span>
+                                          </div>
+
+                                          {/* Action buttons */}
+                                          <div
+                                            className="flex items-center"
+                                            style={{
+                                              gap: "6px",
+                                              flexShrink: 0,
+                                            }}
+                                          >
+                                            {/* Copy button */}
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleCopy(
+                                                  w.id,
+                                                  w.word,
+                                                  w.meaning,
+                                                  w.root,
+                                                )
+                                              }
+                                              data-ocid={`vocab.saved_word.copy_button.${cardIndex}`}
+                                              aria-label={
+                                                copiedId === w.id
+                                                  ? "Copied"
+                                                  : `Copy ${w.word}`
+                                              }
+                                              style={{
+                                                background:
+                                                  copiedId === w.id
+                                                    ? "#E8F5E9"
+                                                    : "#E3F2FD",
+                                                border: "none",
+                                                cursor: "pointer",
+                                                borderRadius: "50%",
+                                                width: "28px",
+                                                height: "28px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                transition:
+                                                  "background 0.2s ease",
+                                              }}
+                                            >
+                                              {copiedId === w.id ? (
+                                                <Check
+                                                  size={12}
+                                                  style={{ color: "#28A745" }}
+                                                />
+                                              ) : (
+                                                <Copy
+                                                  size={12}
+                                                  style={{ color: "#1565C0" }}
+                                                />
+                                              )}
+                                            </button>
+
+                                            {/* Delete button */}
+                                            <button
+                                              type="button"
+                                              onClick={() => onDelete(w.id)}
+                                              data-ocid={`vocab.saved_word.delete_button.${cardIndex}`}
+                                              aria-label={`Delete ${w.word}`}
+                                              style={{
+                                                background: "#FFEBEE",
+                                                border: "none",
+                                                cursor: "pointer",
+                                                borderRadius: "50%",
+                                                width: "28px",
+                                                height: "28px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                flexShrink: 0,
+                                              }}
+                                            >
+                                              <Trash2
+                                                size={12}
+                                                style={{ color: "#DC3545" }}
+                                              />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </motion.div>
@@ -334,6 +808,8 @@ export function VocabScreen() {
   >(null);
   const [savedWords, setSavedWords] = useState<SavedWord[]>([]);
   const [isSaved, setIsSaved] = useState(false);
+  const [showImage, setShowImage] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   // Load saved words on mount
   useEffect(() => {
@@ -348,9 +824,16 @@ export function VocabScreen() {
     setQuestion(null);
     setSelectedLabel(null);
     setIsSaved(false);
+    setImageUrl(null);
     try {
       const q = await generateVocabQuestion(difficulty, type);
       setQuestion(q);
+      if (showImage) {
+        const url = await fetchImage(q.word);
+        setImageUrl(url);
+      } else {
+        setImageUrl(null);
+      }
     } catch {
       toast.error("Failed to generate question. Please try again.");
     } finally {
@@ -604,6 +1087,44 @@ export function VocabScreen() {
             })}
           </div>
         </div>
+
+        {/* Show Image toggle row */}
+        <div
+          className="flex items-center justify-between"
+          data-ocid="vocab.image.toggle"
+          style={{
+            marginTop: "18px",
+            paddingTop: "18px",
+            borderTop: "1px solid #F0F4F8",
+          }}
+        >
+          <div>
+            <p
+              style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: "#90A4AE",
+                textTransform: "uppercase",
+                letterSpacing: "0.12em",
+                marginBottom: "4px",
+                fontFamily: "'Figtree', sans-serif",
+              }}
+            >
+              Image
+            </p>
+            <p
+              style={{
+                fontSize: "14px",
+                fontWeight: 700,
+                color: "#212121",
+                fontFamily: "'Figtree', sans-serif",
+              }}
+            >
+              {showImage ? "Show Image" : "Text Only"}
+            </p>
+          </div>
+          <PhysicalToggle checked={showImage} onChange={setShowImage} />
+        </div>
       </div>
 
       {/* ── Generate Button ── */}
@@ -690,6 +1211,21 @@ export function VocabScreen() {
             }}
             data-ocid="vocab.card"
           >
+            {/* Image Box */}
+            {imageUrl && (
+              <img
+                src={imageUrl}
+                alt={question.word}
+                style={{
+                  width: "100%",
+                  borderRadius: "12px",
+                  marginBottom: "10px",
+                  objectFit: "cover",
+                  maxHeight: "180px",
+                }}
+              />
+            )}
+
             {/* Word header row */}
             <div
               className="flex items-start justify-between"
