@@ -11,7 +11,6 @@ import {
 } from "@/lib/solverApi";
 import { classify } from "@/lib/variantEngine";
 import type { Settings, VariantQuestion } from "@/lib/variantEngine";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   BookOpen,
   Download,
@@ -24,12 +23,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "./hooks/useActor";
-import {
-  InternetIdentityProvider,
-  useInternetIdentity,
-} from "./hooks/useInternetIdentity";
-
-const queryClient = new QueryClient();
+import { useInternetIdentity } from "./hooks/useInternetIdentity";
 
 type Tab = "generate" | "variant" | "drill" | "vocab" | "settings";
 
@@ -46,7 +40,8 @@ function isStandalone(): boolean {
   );
 }
 
-function AppInner() {
+// App is the single exported component -- providers live in main.tsx
+export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("generate");
   const [variants, setVariants] = useState<VariantQuestion[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
@@ -59,6 +54,7 @@ function AppInner() {
   const [showIOSCard, setShowIOSCard] = useState(false);
   const [installable, setInstallable] = useState(false);
 
+  // Actor is used for non-blocking session saving only -- never gates the app shell
   const { actor } = useActor();
   const { identity } = useInternetIdentity();
 
@@ -107,7 +103,6 @@ function AppInner() {
 
   function handleDismissBanner() {
     setShowInstallBanner(false);
-    // Don't mark as installed — just dismissed. Keep installable true so Settings still shows it.
   }
 
   async function handleGenerate(question: string, settings: Settings) {
@@ -179,6 +174,7 @@ function AppInner() {
       setVariants(generated);
       setCurrentQuestion(question);
 
+      // Non-blocking backend save -- only when actor is available
       if (actor && identity) {
         const sessionId = crypto.randomUUID();
         actor
@@ -287,7 +283,6 @@ function AppInner() {
                 flexShrink: 0,
               }}
             >
-              {/* Share icon (box with up arrow) */}
               <svg
                 width="18"
                 height="18"
@@ -582,15 +577,5 @@ function AppInner() {
 
       <Toaster position="top-center" richColors />
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <InternetIdentityProvider>
-        <AppInner />
-      </InternetIdentityProvider>
-    </QueryClientProvider>
   );
 }

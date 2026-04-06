@@ -9,30 +9,38 @@ const ACTOR_QUERY_KEY = "actor";
 export function useActor() {
   const { identity } = useInternetIdentity();
   const queryClient = useQueryClient();
-  const actorQuery = useQuery<backendInterface>({
+  const actorQuery = useQuery<backendInterface | null>({
     queryKey: [ACTOR_QUERY_KEY, identity?.getPrincipal().toString()],
     queryFn: async () => {
-      const isAuthenticated = !!identity;
+      try {
+        const isAuthenticated = !!identity;
 
-      if (!isAuthenticated) {
-        // Return anonymous actor if not authenticated
-        return await createActorWithConfig();
+        if (!isAuthenticated) {
+          // Return anonymous actor if not authenticated
+          return await createActorWithConfig();
+        }
+
+        const actorOptions = {
+          agentOptions: {
+            identity,
+          },
+        };
+
+        const actor = await createActorWithConfig(actorOptions);
+        const adminToken = getSecretParameter("caffeineAdminToken") || "";
+        await actor._initializeAccessControlWithSecret(adminToken);
+        return actor;
+      } catch (err) {
+        // Never propagate actor creation errors -- app must load regardless
+        console.warn(
+          "[useActor] Actor creation failed, running in offline mode:",
+          err,
+        );
+        return null;
       }
-
-      const actorOptions = {
-        agentOptions: {
-          identity,
-        },
-      };
-
-      const actor = await createActorWithConfig(actorOptions);
-      const adminToken = getSecretParameter("caffeineAdminToken") || "";
-      await actor._initializeAccessControlWithSecret(adminToken);
-      return actor;
     },
     // Only refetch when identity changes
     staleTime: Number.POSITIVE_INFINITY,
-    // This will cause the actor to be recreated when the identity changes
     enabled: true,
   });
 
