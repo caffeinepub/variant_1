@@ -7,6 +7,7 @@ export interface VocabOption {
   label: "A" | "B" | "C" | "D";
   text: string;
   isCorrect: boolean;
+  meaning?: string; // shown after answering
 }
 
 export interface VocabQuestion {
@@ -31,6 +32,48 @@ export interface SavedWord {
 }
 
 const VOCAB_STORAGE_KEY = "variant_saved_words";
+
+// ============================================================
+// MEMORY TRACKING — prevents vocabulary repetition
+// Stores the last 50 used words; enforces a cooldown of 10
+// so a word cannot reappear within the last 10 generations.
+// ============================================================
+const usedWords: string[] = [];
+const HISTORY_LIMIT = 50;
+const COOLDOWN = 10;
+
+function recordWord(word: string): void {
+  usedWords.push(word);
+  if (usedWords.length > HISTORY_LIMIT) {
+    usedWords.shift();
+  }
+}
+
+/**
+ * Returns true if the word is in cooldown — i.e. it appeared
+ * within the last COOLDOWN generations.
+ */
+function isOnCooldown(word: string): boolean {
+  const recent = usedWords.slice(-COOLDOWN);
+  return recent.includes(word);
+}
+
+/**
+ * Pick a word from the bank that is NOT on cooldown.
+ * Falls back to full list if fewer than 5 candidates remain.
+ */
+function pickWord(
+  bank: (typeof WORD_BANK)[keyof typeof WORD_BANK],
+): (typeof bank)[number] {
+  let filtered = bank.filter((entry) => !isOnCooldown(entry.word));
+
+  // Partial reuse fallback — if almost everything is on cooldown
+  if (filtered.length < 5) {
+    filtered = bank;
+  }
+
+  return filtered[Math.floor(Math.random() * filtered.length)];
+}
 
 export function getSavedWords(): SavedWord[] {
   try {
@@ -126,6 +169,34 @@ const WORD_BANK: Record<
       synonyms: ["thrifty", "economical", "prudent", "careful"],
       antonyms: ["wasteful", "lavish", "extravagant", "profligate"],
     },
+    {
+      word: "gentle",
+      meaning: "mild in temperament or behavior; kind or tender",
+      root: "gentilis (Latin: of the same clan)",
+      synonyms: ["mild", "soft", "tender", "kind"],
+      antonyms: ["harsh", "rough", "aggressive", "violent"],
+    },
+    {
+      word: "humble",
+      meaning: "having a modest view of one's own importance",
+      root: "humilis (Latin: low, on the ground)",
+      synonyms: ["modest", "unassuming", "meek", "unpretentious"],
+      antonyms: ["arrogant", "proud", "boastful", "haughty"],
+    },
+    {
+      word: "eager",
+      meaning: "strongly wanting to do or have something",
+      root: "acris (Latin: sharp, keen)",
+      synonyms: ["keen", "enthusiastic", "zealous", "avid"],
+      antonyms: ["reluctant", "indifferent", "apathetic", "unwilling"],
+    },
+    {
+      word: "sincere",
+      meaning: "free from pretense or deceit; genuine",
+      root: "sincerus (Latin: whole, pure, genuine)",
+      synonyms: ["genuine", "honest", "authentic", "heartfelt"],
+      antonyms: ["insincere", "fake", "deceitful", "hypocritical"],
+    },
   ],
   intermediate: [
     {
@@ -169,6 +240,34 @@ const WORD_BANK: Record<
       root: "candidus (Latin: white, pure)",
       synonyms: ["frank", "honest", "sincere", "forthright"],
       antonyms: ["dishonest", "evasive", "deceitful", "guarded"],
+    },
+    {
+      word: "ambiguous",
+      meaning: "open to more than one interpretation; unclear",
+      root: "ambigere (Latin: to wander, to be uncertain)",
+      synonyms: ["vague", "unclear", "equivocal", "nebulous"],
+      antonyms: ["clear", "definite", "unambiguous", "explicit"],
+    },
+    {
+      word: "aloof",
+      meaning: "not friendly or forthcoming; cold and distant",
+      root: "a- (on) + lof (Dutch: windward side of a ship)",
+      synonyms: ["distant", "detached", "reserved", "standoffish"],
+      antonyms: ["friendly", "warm", "sociable", "approachable"],
+    },
+    {
+      word: "zealous",
+      meaning: "having or showing great energy or enthusiasm",
+      root: "zelus (Greek/Latin: zeal, jealousy)",
+      synonyms: ["enthusiastic", "fervent", "ardent", "passionate"],
+      antonyms: ["apathetic", "indifferent", "lukewarm", "disinterested"],
+    },
+    {
+      word: "prudent",
+      meaning: "acting with care and thought for the future",
+      root: "prudens (Latin: foreseeing, wise)",
+      synonyms: ["cautious", "wise", "judicious", "discreet"],
+      antonyms: ["reckless", "imprudent", "rash", "foolish"],
     },
   ],
   advanced: [
@@ -216,6 +315,35 @@ const WORD_BANK: Record<
       synonyms: ["talkative", "garrulous", "voluble", "verbose"],
       antonyms: ["reticent", "taciturn", "quiet", "reserved"],
     },
+    {
+      word: "perfidious",
+      meaning: "guilty of betrayal; treacherous",
+      root: "perfidia (Latin: treachery)",
+      synonyms: ["treacherous", "disloyal", "deceitful", "faithless"],
+      antonyms: ["loyal", "faithful", "trustworthy", "reliable"],
+    },
+    {
+      word: "inveterate",
+      meaning:
+        "having a particular habit, activity, or interest that is long-established",
+      root: "inveteratus (Latin: of long standing)",
+      synonyms: ["habitual", "chronic", "confirmed", "entrenched"],
+      antonyms: ["occasional", "temporary", "sporadic", "new"],
+    },
+    {
+      word: "querulous",
+      meaning: "complaining in a petulant or whining manner",
+      root: "querulus (Latin: complaining)",
+      synonyms: ["complaining", "petulant", "grumbling", "whining"],
+      antonyms: ["content", "satisfied", "stoic", "placid"],
+    },
+    {
+      word: "insidious",
+      meaning: "proceeding in a gradual, subtle way, but with harmful effects",
+      root: "insidiae (Latin: ambush, trap)",
+      synonyms: ["subtle", "stealthy", "cunning", "treacherous"],
+      antonyms: ["harmless", "straightforward", "honest", "benign"],
+    },
   ],
   professional: [
     {
@@ -260,8 +388,71 @@ const WORD_BANK: Record<
       synonyms: ["brief", "terse", "succinct", "pithy"],
       antonyms: ["verbose", "loquacious", "garrulous", "wordy"],
     },
+    {
+      word: "pellucid",
+      meaning: "translucently clear; easily understood",
+      root: "pellucidus (Latin: transparent)",
+      synonyms: ["clear", "transparent", "lucid", "limpid"],
+      antonyms: ["opaque", "murky", "obscure", "cloudy"],
+    },
+    {
+      word: "garrulous",
+      meaning: "excessively talkative, especially on trivial matters",
+      root: "garrulus (Latin: chattering)",
+      synonyms: ["talkative", "loquacious", "verbose", "long-winded"],
+      antonyms: ["taciturn", "reserved", "reticent", "concise"],
+    },
+    {
+      word: "perfunctory",
+      meaning: "carried out with minimum effort; lacking care",
+      root: "perfungi (Latin: to get through with)",
+      synonyms: ["cursory", "superficial", "hasty", "routine"],
+      antonyms: ["thorough", "careful", "diligent", "attentive"],
+    },
+    {
+      word: "inveterate",
+      meaning: "deeply entrenched by long habit",
+      root: "inveteratus (Latin: of long standing)",
+      synonyms: ["habitual", "confirmed", "chronic", "deep-rooted"],
+      antonyms: ["occasional", "incidental", "sporadic", "reformed"],
+    },
   ],
 };
+
+// Flat map: every synonym/antonym word → a short meaning string
+// Built lazily so it doesn't run at module parse time.
+let _wordMeaningMap: Map<string, string> | null = null;
+
+function getWordMeaningMap(): Map<string, string> {
+  if (_wordMeaningMap) return _wordMeaningMap;
+  _wordMeaningMap = new Map<string, string>();
+  for (const tier of Object.values(WORD_BANK)) {
+    for (const entry of tier) {
+      // Map every synonym to the main word meaning (best we can without a thesaurus DB)
+      for (const syn of entry.synonyms) {
+        if (!_wordMeaningMap.has(syn)) {
+          _wordMeaningMap.set(
+            syn,
+            `Synonym of "${entry.word}" — ${entry.meaning}`,
+          );
+        }
+      }
+      for (const ant of entry.antonyms) {
+        if (!_wordMeaningMap.has(ant)) {
+          _wordMeaningMap.set(
+            ant,
+            `Antonym of "${entry.word}" — ${entry.meaning}`,
+          );
+        }
+      }
+      // Also map the headword itself
+      if (!_wordMeaningMap.has(entry.word)) {
+        _wordMeaningMap.set(entry.word, entry.meaning);
+      }
+    }
+  }
+  return _wordMeaningMap;
+}
 
 function getTierKey(
   difficulty: number,
@@ -278,7 +469,12 @@ function getWordFromBank(
 ): VocabQuestion {
   const tier = getTierKey(difficulty);
   const bank = WORD_BANK[tier];
-  const entry = bank[Math.floor(Math.random() * bank.length)];
+
+  // Use memory-aware picker instead of raw random
+  const entry = pickWord(bank);
+
+  // Record this word in the used-words history
+  recordWord(entry.word);
 
   const correct =
     type === "synonym"
@@ -292,10 +488,13 @@ function getWordFromBank(
   const allOptions = shuffleArray([correct, ...distractors]);
   const labels: ("A" | "B" | "C" | "D")[] = ["A", "B", "C", "D"];
 
+  const meaningMap = getWordMeaningMap();
   const options: VocabOption[] = allOptions.slice(0, 4).map((text, i) => ({
     label: labels[i],
     text,
     isCorrect: text === correct,
+    meaning:
+      meaningMap.get(text.toLowerCase()) ?? meaningMap.get(text) ?? undefined,
   }));
 
   const correctLabel = options.find((o) => o.isCorrect)?.label ?? "A";

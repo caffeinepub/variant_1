@@ -1344,59 +1344,99 @@ export function VocabScreen() {
               {question.options.map((opt) => {
                 const style = getOptionStyle(opt);
                 return (
-                  <button
-                    key={opt.label}
-                    type="button"
-                    onClick={() => handleOptionSelect(opt.label)}
-                    disabled={answered}
-                    data-ocid={`vocab.option.${opt.label}`}
-                    className="w-full flex items-center text-left transition-all"
-                    style={{
-                      height: "48px",
-                      paddingLeft: "14px",
-                      paddingRight: "14px",
-                      borderRadius: "16px",
-                      cursor: answered ? "default" : "pointer",
-                      gap: "10px",
-                      boxShadow: answered
-                        ? "none"
-                        : "0 2px 8px rgba(0,0,0,0.06)",
-                      ...style,
-                    }}
-                  >
-                    <span
+                  <div key={opt.label}>
+                    <button
+                      type="button"
+                      onClick={() => handleOptionSelect(opt.label)}
+                      disabled={answered}
+                      data-ocid={`vocab.option.${opt.label}`}
+                      className="w-full flex items-center text-left transition-all"
                       style={{
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        minWidth: "20px",
-                        color: style.color as string,
+                        minHeight: "48px",
+                        paddingLeft: "14px",
+                        paddingRight: "14px",
+                        paddingTop: "10px",
+                        paddingBottom: answered ? "6px" : "10px",
+                        borderRadius: answered ? "16px 16px 0 0" : "16px",
+                        cursor: answered ? "default" : "pointer",
+                        gap: "10px",
+                        boxShadow: answered
+                          ? "none"
+                          : "0 2px 8px rgba(0,0,0,0.06)",
+                        ...style,
                       }}
                     >
-                      {opt.label}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 500,
-                        flex: 1,
-                        color: style.color as string,
-                      }}
-                    >
-                      {opt.text}
-                    </span>
-                    {answered && opt.isCorrect && (
-                      <span style={{ fontSize: "14px", color: "#28A745" }}>
-                        ✓
+                      <span
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: 700,
+                          minWidth: "20px",
+                          color: style.color as string,
+                        }}
+                      >
+                        {opt.label}
                       </span>
-                    )}
-                    {answered &&
-                      opt.label === selectedLabel &&
-                      !opt.isCorrect && (
-                        <span style={{ fontSize: "14px", color: "#DC3545" }}>
-                          ✗
+                      <span
+                        style={{
+                          fontSize: "13px",
+                          fontWeight: 500,
+                          flex: 1,
+                          color: style.color as string,
+                        }}
+                      >
+                        {opt.text}
+                      </span>
+                      {answered && opt.isCorrect && (
+                        <span style={{ fontSize: "14px", color: "#28A745" }}>
+                          ✓
                         </span>
                       )}
-                  </button>
+                      {answered &&
+                        opt.label === selectedLabel &&
+                        !opt.isCorrect && (
+                          <span style={{ fontSize: "14px", color: "#DC3545" }}>
+                            ✗
+                          </span>
+                        )}
+                    </button>
+                    {/* Meaning strip — shown after answering */}
+                    {answered && opt.meaning && (
+                      <div
+                        style={{
+                          background: opt.isCorrect
+                            ? "#F1F8E9"
+                            : opt.label === selectedLabel
+                              ? "#FFF8F8"
+                              : "#F8FAFC",
+                          borderLeft: `3px solid ${
+                            opt.isCorrect
+                              ? "#81C784"
+                              : opt.label === selectedLabel
+                                ? "#EF9A9A"
+                                : "#CFD8DC"
+                          }`,
+                          borderRadius: "0 0 16px 16px",
+                          padding: "6px 14px 8px 14px",
+                        }}
+                      >
+                        <p
+                          style={{
+                            fontSize: "11px",
+                            color: opt.isCorrect
+                              ? "#388E3C"
+                              : opt.label === selectedLabel
+                                ? "#C62828"
+                                : "#78909C",
+                            lineHeight: 1.5,
+                            margin: 0,
+                            fontStyle: "italic",
+                          }}
+                        >
+                          {opt.meaning}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>

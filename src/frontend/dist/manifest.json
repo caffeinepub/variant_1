@@ -1,7 +1,7 @@
 {
   "name": "Variant",
   "short_name": "Variant",
-  "description": "Math MCQ variant generator",
+  "description": "Math MCQ variant generator for quantitative aptitude",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -12,13 +12,25 @@
       "src": "/assets/generated/variant-icon-192.dim_192x192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/assets/generated/variant-icon.dim_512x512.png",
+      "src": "/assets/generated/variant-icon-192.dim_192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/assets/generated/variant-icon-512.dim_512x512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/generated/variant-icon-512.dim_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

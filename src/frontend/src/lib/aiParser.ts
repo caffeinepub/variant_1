@@ -13,6 +13,8 @@ export type QuestionTopic =
   | "percentage"
   | "ratio"
   | "work_time"
+  | "mixture"
+  | "averages"
   | "unknown";
 
 export interface WorkerInfo {
@@ -42,7 +44,15 @@ export interface ProfitLossParams {
   buying_fraction?: number; // cheating: buys X more (e.g. 1.2 means 20% more)
   selling_fraction?: number; // cheating: sells X less (e.g. 0.8 means 20% less)
   sp?: number; // direct SP if given
-  subtype: "standard" | "cheat_weight" | "successive_discount" | "find_sp";
+  // Free items: x free on every y purchased
+  free_items_given?: number; // x free items
+  free_items_on?: number; // on y items purchased
+  subtype:
+    | "standard"
+    | "cheat_weight"
+    | "successive_discount"
+    | "find_sp"
+    | "free_items";
 }
 
 export interface TimeDistanceParams {
@@ -101,6 +111,32 @@ export interface WorkTimeParams {
   pipe_empty?: number; // emptying pipe rate
 }
 
+// NEW: Mixture & Alligation
+export interface MixtureParams {
+  topic: "mixture";
+  q1: number; // quantity of first ingredient/vessel
+  c1: number; // concentration/price of first ingredient
+  q2: number; // quantity of second ingredient/vessel
+  c2: number; // concentration/price of second ingredient
+  mean?: number; // mean price/concentration (for alligation)
+  replacement_qty?: number; // for replacement problems
+  replacement_times?: number; // number of replacements
+  subtype: "two_vessel" | "alligation" | "replacement";
+}
+
+// NEW: Averages
+export interface AveragesParams {
+  topic: "averages";
+  values?: number[]; // list of values to average
+  count?: number; // number of items
+  known_avg?: number; // given average
+  weights?: number[]; // for weighted average
+  new_element?: number; // element added to set
+  remove_element?: number; // element removed from set
+  asked_new_avg?: number; // target average after add/remove
+  subtype: "simple" | "weighted" | "add_remove";
+}
+
 export type ParsedQuestion =
   | WorkWagesParams
   | ProfitLossParams
@@ -110,9 +146,11 @@ export type ParsedQuestion =
   | PercentageParams
   | RatioParams
   | WorkTimeParams
+  | MixtureParams
+  | AveragesParams
   | { topic: "unknown"; nums: number[]; text: string };
 
-// ── Utility helpers ────────────────────────────────────────
+// ── Utility helpers ─────────────────────────────────────────────────
 
 function normalize(text: string): string {
   // Normalize thousands separators: 3,600 -> 3600
@@ -156,7 +194,7 @@ function detectAskedPerson(text: string): string {
   return "B"; // default
 }
 
-// ── Work & Wages Parser ────────────────────────────────────
+// ── Work & Wages Parser ────────────────────────────────────────────────
 
 function parseWorkWages(text: string): WorkWagesParams | null {
   const norm = normalize(text);
@@ -285,20 +323,55 @@ function parseWorkWages(text: string): WorkWagesParams | null {
   };
 }
 
-// ── Profit & Loss Parser ────────────────────────────────────
+// ── Profit & Loss Parser ──────────────────────────────────────────────
 
 function parseProfitLoss(text: string): ProfitLossParams | null {
   const norm = normalize(text);
   const lower = norm.toLowerCase();
 
   if (
-    !/\b(profit|loss|cp|sp|cost|selling|markup|discount|gain|buy|sell)\b/.test(
+    !/\b(profit|loss|cp|sp|cost|selling|markup|discount|gain|buy|sell|free|bonus)\b/.test(
       lower,
     )
   )
     return null;
 
   const nums = extractAllNumbers(norm);
+
+  // FREE ITEMS detection: "buy X get Y free" / "X free on every Y"
+  const freeOnMatch =
+    norm.match(/(\d+)\s*free\s+(?:on|with|for every|per)\s*(\d+)/i) ||
+    norm.match(/buy\s*(\d+)\s*(?:and|,)?\s*get\s*(\d+)\s*free/i) ||
+    norm.match(
+      /(\d+)\s*free\s+(?:articles?|items?|pieces?)\s*(?:on|with|for)\s*(\d+)/i,
+    );
+
+  if (freeOnMatch) {
+    const freeGiven = Number.parseInt(freeOnMatch[1], 10);
+    const paidFor = Number.parseInt(freeOnMatch[2], 10);
+    // CP: look for cost price explicitly
+    const cpMatch =
+      norm.match(/(?:cp|cost price)[^\d]*(\d+)/i) ||
+      norm.match(/[₹Rs]+\s*(\d+)/i);
+    const cp = cpMatch
+      ? Number.parseFloat(cpMatch[1])
+      : (nums.find((n) => n > 10) ?? 100);
+    const markupMatch = norm.match(
+      /(?:mark(?:ed)?|markup)[^\d]*(\d+(?:\.\d+)?)\s*%/i,
+    );
+    const discountMatch = norm.match(/discount[^\d]*(\d+(?:\.\d+)?)\s*%/i);
+    const markup = markupMatch ? Number.parseFloat(markupMatch[1]) : 0;
+    const discount = discountMatch ? Number.parseFloat(discountMatch[1]) : 0;
+    return {
+      topic: "profit_loss",
+      cp,
+      markup_pct: markup,
+      discount_pct: discount > 0 ? discount : undefined,
+      free_items_given: freeGiven,
+      free_items_on: paidFor,
+      subtype: "free_items",
+    };
+  }
 
   // Detect cheating/weight fraud
   const isCheat =
@@ -381,8 +454,8 @@ function parseProfitLoss(text: string): ProfitLossParams | null {
   );
   const discountMatch = norm.match(/discount[^\d]*(\d+(?:\.\d+)?)\s*%/i);
   const cpMatch =
-    norm.match(/(?:cost\s+price|cp)[^₹\d]*(\d+(?:\.\d+)?)/i) ||
-    norm.match(/[₹Rs]+\s*(\d+(?:\.\d+)?)/i);
+    norm.match(/(?:cost\s+price|cp)[^\u20b9\d]*(\d+(?:\.\d+)?)/i) ||
+    norm.match(/[\u20b9Rs]+\s*(\d+(?:\.\d+)?)/i);
 
   const cp = cpMatch ? Number.parseFloat(cpMatch[1]) : (nums[0] ?? 100);
   const markup = markupMatch
@@ -409,7 +482,7 @@ function parseProfitLoss(text: string): ProfitLossParams | null {
   };
 }
 
-// ── Time & Distance Parser ─────────────────────────────────
+// ── Time & Distance Parser ───────────────────────────────────────────────
 
 function parseTimeDistance(text: string): TimeDistanceParams | null {
   const norm = normalize(text);
@@ -470,7 +543,7 @@ function parseTimeDistance(text: string): TimeDistanceParams | null {
   };
 }
 
-// ── Simple Interest Parser ─────────────────────────────────
+// ── Simple Interest Parser ───────────────────────────────────────────────
 
 function parseSimpleInterest(text: string): SimpleInterestParams | null {
   const norm = normalize(text);
@@ -497,7 +570,7 @@ function parseSimpleInterest(text: string): SimpleInterestParams | null {
   return { topic: "simple_interest", principal: P, rate: R, time: T, asked };
 }
 
-// ── Compound Interest Parser ───────────────────────────────
+// ── Compound Interest Parser ───────────────────────────────────────────────
 
 function parseCompoundInterest(text: string): CompoundInterestParams | null {
   const norm = normalize(text);
@@ -531,7 +604,7 @@ function parseCompoundInterest(text: string): CompoundInterestParams | null {
   };
 }
 
-// ── Percentage Parser ──────────────────────────────────────
+// ── Percentage Parser ──────────────────────────────────────────────────────
 
 function parsePercentage(text: string): PercentageParams | null {
   const norm = normalize(text);
@@ -563,7 +636,7 @@ function parsePercentage(text: string): PercentageParams | null {
   };
 }
 
-// ── Ratio Parser ───────────────────────────────────────────
+// ── Ratio Parser ───────────────────────────────────────────────────────────────
 
 function parseRatio(text: string): RatioParams | null {
   const norm = normalize(text);
@@ -593,7 +666,7 @@ function parseRatio(text: string): RatioParams | null {
   return { topic: "ratio", parts, total, asked_index };
 }
 
-// ── Work & Time Parser ─────────────────────────────────────
+// ── Work & Time Parser ─────────────────────────────────────────────────────
 
 function parseWorkTime(text: string): WorkTimeParams | null {
   const norm = normalize(text);
@@ -636,7 +709,131 @@ function parseWorkTime(text: string): WorkTimeParams | null {
   };
 }
 
-// ── Main export ────────────────────────────────────────────
+// ── Mixture & Alligation Parser ───────────────────────────────────────────────
+
+function parseMixture(text: string): MixtureParams | null {
+  const norm = normalize(text);
+  const lower = norm.toLowerCase();
+
+  if (
+    !/\b(mixture|mix|alligation|blend|solution|concentration|litre|liter|vessel|replace|replacement|dilut)\b/.test(
+      lower,
+    )
+  )
+    return null;
+
+  const nums = extractAllNumbers(norm);
+
+  // Replacement: "X litres withdrawn and replaced"
+  const isReplacement = /replace|withdraw|repeated|successive/.test(lower);
+  if (isReplacement) {
+    const v = nums[0] ?? 50; // total volume
+    const x = nums[1] ?? 10; // replaced each time
+    const n = nums[2] ?? 1; // times repeated
+    return {
+      topic: "mixture",
+      q1: v,
+      c1: 100, // starts as pure
+      q2: 0,
+      c2: 0,
+      replacement_qty: x,
+      replacement_times: n,
+      subtype: "replacement",
+    };
+  }
+
+  // Alligation: "mean price" or "ratio in which"
+  const isAlligation = /mean price|in what ratio|alligation|which ratio/.test(
+    lower,
+  );
+  if (isAlligation) {
+    const c1 = nums[0] ?? 20;
+    const c2 = nums[1] ?? 30;
+    const mean = nums[2] ?? (c1 + c2) / 2;
+    return {
+      topic: "mixture",
+      q1: c2 - mean,
+      c1,
+      q2: mean - c1,
+      c2,
+      mean,
+      subtype: "alligation",
+    };
+  }
+
+  // Two vessel mixing
+  const q1 = nums[0] ?? 10;
+  const c1 = nums[1] ?? 20;
+  const q2 = nums[2] ?? 15;
+  const c2 = nums[3] ?? 40;
+
+  return {
+    topic: "mixture",
+    q1,
+    c1,
+    q2,
+    c2,
+    subtype: "two_vessel",
+  };
+}
+
+// ── Averages Parser ────────────────────────────────────────────────────────────────
+
+function parseAverages(text: string): AveragesParams | null {
+  const norm = normalize(text);
+  const lower = norm.toLowerCase();
+
+  if (!/\b(average|mean|avg|arithmetic mean)\b/.test(lower)) return null;
+
+  const nums = extractAllNumbers(norm);
+
+  // Add/remove element scenario: "average increases/decreases after adding/removing"
+  const isAddRemove =
+    /(?:add|include|join|new|enter|leave|remov|replac|withdraw|exit)/.test(
+      lower,
+    );
+  if (isAddRemove) {
+    const count = nums[0] ?? 5;
+    const knownAvg = nums[1] ?? 20;
+    const newEl = nums[2] ?? 30;
+    const askedNewAvg = nums[3];
+    return {
+      topic: "averages",
+      count,
+      known_avg: knownAvg,
+      new_element: newEl,
+      asked_new_avg: askedNewAvg,
+      subtype: "add_remove",
+    };
+  }
+
+  // Weighted average: "group of X at avg Y and group of Z at avg W"
+  const isWeighted = /group|section|class|department|two sets|weighted/.test(
+    lower,
+  );
+  if (isWeighted && nums.length >= 4) {
+    return {
+      topic: "averages",
+      weights: [nums[0], nums[2]],
+      values: [nums[1], nums[3]],
+      subtype: "weighted",
+    };
+  }
+
+  // Simple average
+  if (nums.length >= 2) {
+    return {
+      topic: "averages",
+      values: nums.slice(0, Math.min(nums.length, 6)),
+      count: nums.length,
+      subtype: "simple",
+    };
+  }
+
+  return null;
+}
+
+// ── Main export ────────────────────────────────────────────────────────────────
 
 export function parseQuestion(text: string): ParsedQuestion {
   // Priority order: most specific first
@@ -660,6 +857,12 @@ export function parseQuestion(text: string): ParsedQuestion {
 
   const ratio = parseRatio(text);
   if (ratio) return ratio;
+
+  const mixture = parseMixture(text);
+  if (mixture) return mixture;
+
+  const averages = parseAverages(text);
+  if (averages) return averages;
 
   const workTime = parseWorkTime(text);
   if (workTime) return workTime;

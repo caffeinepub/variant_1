@@ -1,5 +1,5 @@
 // ============================================================
-// VARIANT ENGINE v13 — Per-Variant Option Binding + Minimum-Gap Distractors
+// VARIANT ENGINE v20 — Universal Aptitude System
 // Stage 1: AI Parser (rule-based, deterministic)
 // Stage 2-4: Dedicated Solvers (formula-first, exact math)
 // Stage 5: Option Generator (topic-aware mistake patterns)
@@ -9,7 +9,10 @@
 
 import { parseQuestion } from "./aiParser";
 import type { ParsedQuestion } from "./aiParser";
+import type { AveragesParams, MixtureParams } from "./aiParser";
 import { buildOptions, generateTopicDistractors } from "./optionGenerator";
+import { solveAverages } from "./solvers/averagesSolver";
+import { solveMixture } from "./solvers/mixtureSolver";
 import { solvePercentage as solvePercentageNew } from "./solvers/percentageSolver";
 import {
   solveProfitLoss,
@@ -526,6 +529,8 @@ const SOLVER_COVERAGE: Record<string, boolean> = {
   percentage: true,
   ratio: true,
   work_time: true,
+  mixture: true,
+  averages: true,
   unknown: true, // generic fallback
 };
 
@@ -606,8 +611,15 @@ function solveFromParsed(
       return solveRatio(parsed, c);
     case "work_time":
       return solveWorkTime(parsed, c);
+    case "mixture":
+      return solveMixture(parsed as MixtureParams, c);
+    case "averages":
+      return solveAverages(parsed as AveragesParams, c);
     default:
-      return solveGenericFallback(parsed.nums, c);
+      return solveGenericFallback(
+        (parsed as { topic: "unknown"; nums: number[]; text: string }).nums,
+        c,
+      );
   }
 }
 
@@ -723,6 +735,49 @@ function mutateParsed(parsed: ParsedQuestion, factor: number): ParsedQuestion {
         ...w,
         time: Math.max(1, Math.round(w.time * factor)),
       })),
+    };
+  }
+
+  if (parsed.topic === "mixture") {
+    const mp = parsed as MixtureParams;
+    return {
+      ...mp,
+      q1: Math.max(1, Math.round(mp.q1 * factor)),
+      q2: Math.max(1, Math.round(mp.q2 * factor)),
+      // c1/c2 are concentration %: do NOT scale (would exceed 100%)
+      replacement_qty:
+        mp.replacement_qty !== undefined
+          ? Math.max(1, Math.round(mp.replacement_qty * factor))
+          : undefined,
+    };
+  }
+
+  if (parsed.topic === "averages") {
+    const ap = parsed as AveragesParams;
+    return {
+      ...ap,
+      values: ap.values
+        ? ap.values.map((v) => Math.max(1, Math.round(v * factor)))
+        : undefined,
+      count:
+        ap.count !== undefined
+          ? Math.max(2, Math.round(ap.count * factor))
+          : undefined,
+      known_avg:
+        ap.known_avg !== undefined
+          ? Math.max(1, Math.round(ap.known_avg * factor))
+          : undefined,
+      weights: ap.weights
+        ? ap.weights.map((w) => Math.max(1, Math.round(w * factor)))
+        : undefined,
+      new_element:
+        ap.new_element !== undefined
+          ? Math.max(1, Math.round(ap.new_element * factor))
+          : undefined,
+      remove_element:
+        ap.remove_element !== undefined
+          ? Math.max(1, Math.round(ap.remove_element * factor))
+          : undefined,
     };
   }
 

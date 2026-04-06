@@ -9,13 +9,14 @@ import type { Settings, VariantQuestion } from "@/lib/variantEngine";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   BookOpen,
+  Download,
   FolderOpen,
   Home,
   Settings as SettingsIcon,
   Target,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "./hooks/useActor";
 import {
@@ -32,8 +33,31 @@ function AppInner() {
   const [variants, setVariants] = useState<VariantQuestion[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [prefillQuestion, setPrefillQuestion] = useState("");
+  const [installable, setInstallable] = useState(false);
+  const [installed, setInstalled] = useState(false);
   const { actor } = useActor();
   const { identity } = useInternetIdentity();
+
+  useEffect(() => {
+    const onInstallable = () => setInstallable(true);
+    const onInstalled = () => {
+      setInstalled(true);
+      setInstallable(false);
+    };
+
+    window.addEventListener("pwa-installable", onInstallable);
+    window.addEventListener("appinstalled", onInstalled);
+
+    // If prompt was already captured before this effect ran
+    if (window.deferredInstallPrompt) {
+      setInstallable(true);
+    }
+
+    return () => {
+      window.removeEventListener("pwa-installable", onInstallable);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
 
   function handleGenerate(question: string, settings: Settings) {
     if (!question.trim()) {
@@ -94,6 +118,37 @@ function AppInner() {
       className="min-h-screen flex justify-center"
       style={{ backgroundColor: "#f8fafc", minHeight: "100dvh" }}
     >
+      {/* ── PWA Install Banner ── */}
+      {installable && !installed && (
+        <button
+          type="button"
+          data-ocid="install.primary_button"
+          onClick={() => window.triggerInstall()}
+          style={{
+            position: "fixed",
+            top: "calc(8px + env(safe-area-inset-top))",
+            right: "12px",
+            backgroundColor: "#007BFF",
+            color: "#ffffff",
+            borderRadius: "20px",
+            padding: "8px 16px",
+            fontSize: "13px",
+            fontWeight: 700,
+            zIndex: 99999,
+            border: "none",
+            cursor: "pointer",
+            boxShadow: "0 2px 12px rgba(0,123,255,0.4)",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            fontFamily: "'Figtree', sans-serif",
+          }}
+        >
+          <Download size={14} />
+          Install App
+        </button>
+      )}
+
       <div
         className="w-full relative flex flex-col"
         style={{ maxWidth: "480px", minHeight: "100dvh" }}
