@@ -24,6 +24,8 @@ interface GenerateScreenProps {
   currentQuestion: string;
   variants: VariantQuestion[];
   prefillQuestion?: string;
+  isLoading?: boolean;
+  serverError?: string | null;
 }
 
 interface SavedQuestion {
@@ -278,6 +280,8 @@ export function GenerateScreen({
   currentQuestion,
   variants,
   prefillQuestion,
+  isLoading = false,
+  serverError = null,
 }: GenerateScreenProps) {
   const [question, setQuestion] = useState(
     "If a car travels at 60 km/h, how long does it take to travel 120 km?",
@@ -719,6 +723,90 @@ export function GenerateScreen({
         <Settings2 size={18} />
         GENERATE VARIANTS
       </button>
+
+      {/* ── Server Error Card ── */}
+      {serverError && !isLoading && (
+        <div
+          style={{
+            background: "#FFEBEE",
+            border: "1.5px solid #DC3545",
+            borderRadius: "20px",
+            padding: "16px",
+            marginBottom: "4px",
+          }}
+        >
+          <p
+            style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              color: "#C62828",
+              marginBottom: "6px",
+              fontFamily: "'Figtree', sans-serif",
+            }}
+          >
+            ❌ Server Error
+          </p>
+          <p
+            style={{
+              fontSize: "13px",
+              color: "#C62828",
+              lineHeight: 1.5,
+              fontFamily: "'Figtree', sans-serif",
+            }}
+          >
+            {serverError}
+          </p>
+          <p
+            style={{
+              fontSize: "11px",
+              color: "#9E9E9E",
+              marginTop: "8px",
+              fontFamily: "'Figtree', sans-serif",
+            }}
+          >
+            Make sure the Python server is running on localhost:8000
+          </p>
+        </div>
+      )}
+
+      {/* ── Loading Spinner ── */}
+      {isLoading && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "40px 0",
+            gap: "14px",
+          }}
+          data-ocid="results.loading_state"
+        >
+          <div
+            style={{
+              width: "40px",
+              height: "40px",
+              borderRadius: "50%",
+              border: "3px solid #E3EAF3",
+              borderTopColor: "#2196F3",
+              animation: "spin 0.8s linear infinite",
+            }}
+          />
+          <p
+            style={{
+              fontSize: "13px",
+              color: "#90A4AE",
+              fontWeight: 500,
+              fontFamily: "'Figtree', sans-serif",
+            }}
+          >
+            Solving on server...
+          </p>
+          <style>
+            {"@keyframes spin { to { transform: rotate(360deg); } }"}
+          </style>
+        </div>
+      )}
 
       {/* ── Generated Variant Cards ── */}
       <AnimatePresence>

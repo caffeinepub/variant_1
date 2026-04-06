@@ -4,7 +4,12 @@ import { SettingsScreen } from "@/components/SettingsScreen";
 import { VariantScreen } from "@/components/VariantScreen";
 import { VocabScreen } from "@/components/VocabScreen";
 import { Toaster } from "@/components/ui/sonner";
-import { generateVariants } from "@/lib/variantEngine";
+import {
+  SolverApiError,
+  generateVariantFromServer,
+  solveQuestion,
+} from "@/lib/solverApi";
+import { classify } from "@/lib/variantEngine";
 import type { Settings, VariantQuestion } from "@/lib/variantEngine";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
@@ -46,6 +51,8 @@ function AppInner() {
   const [variants, setVariants] = useState<VariantQuestion[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [prefillQuestion, setPrefillQuestion] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   // Install state
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -103,13 +110,72 @@ function AppInner() {
     // Don't mark as installed — just dismissed. Keep installable true so Settings still shows it.
   }
 
-  function handleGenerate(question: string, settings: Settings) {
+  async function handleGenerate(question: string, settings: Settings) {
     if (!question.trim()) {
       toast.error("Please enter a question first.");
       return;
     }
+
+    setIsLoading(true);
+    setServerError(null);
+
     try {
-      const generated = generateVariants(question, settings);
+      // First call: solve the base question
+      const baseResult = await solveQuestion(question.trim());
+      const baseConditions = baseResult.conditions;
+
+      // Build additional variant calls (quantity - 1)
+      const additionalCount = settings.quantity - 1;
+      const variantPromises = Array.from({ length: additionalCount }, () =>
+        generateVariantFromServer(question.trim(), baseConditions),
+      );
+
+      const variantResults = await Promise.allSettled(variantPromises);
+
+      // Helper to convert server result to VariantQuestion
+      function toVariantQuestion(
+        result: typeof baseResult,
+        questionText: string,
+        idx: number,
+      ): VariantQuestion {
+        const { chapter, subTopic } = classify(questionText);
+        const labels = ["A", "B", "C", "D"] as const;
+        const options = result.options_full.map((opt, i) => ({
+          label: labels[i],
+          text: opt.display,
+          isCorrect: i === result.correct_index,
+        }));
+        const correctLabel = labels[result.correct_index];
+        const steps = result.solution_steps ?? [];
+        return {
+          id: `server-${Date.now()}-${idx}`,
+          questionText,
+          options,
+          correctAnswer: result.answer.display,
+          correctLabel,
+          chapter,
+          subTopic,
+          solution: {
+            phase1: steps[0] ?? "Extracting given data...",
+            phase2: steps.slice(1, -1).join(" | ") || "Applying formula",
+            phase3: steps[steps.length - 1] ?? result.answer.display,
+          },
+        };
+      }
+
+      const generated: VariantQuestion[] = [
+        toVariantQuestion(baseResult, question.trim(), 0),
+        ...variantResults
+          .map((r, i) => {
+            if (r.status === "fulfilled") {
+              const qText = r.value.new_question_text ?? question.trim();
+              return toVariantQuestion(r.value, qText, i + 1);
+            }
+            return null;
+          })
+          .filter((v): v is VariantQuestion => v !== null),
+      ];
+
       setVariants(generated);
       setCurrentQuestion(question);
 
@@ -138,9 +204,16 @@ function AppInner() {
           });
       }
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Something went wrong";
+      let message = "Something went wrong";
+      if (err instanceof SolverApiError) {
+        message = err.message;
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setServerError(message);
       toast.error(message);
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -375,6 +448,8 @@ function AppInner() {
                   currentQuestion={currentQuestion}
                   variants={variants}
                   prefillQuestion={prefillQuestion}
+                  isLoading={isLoading}
+                  serverError={serverError}
                 />
               </motion.div>
             )}
