@@ -32,6 +32,18 @@ import {
 import { solveWorkTime } from "./solvers/workTimeSolver";
 import { solveWorkWagesAdvanced } from "./solvers/workWagesSolver";
 
+// NEW: mathEngine pipeline integration (Modules 1-5)
+// Primary pipeline for all question solving.
+// Existing solvers remain as fallback for edge cases.
+import {
+  type VariantResult,
+  extractConditions,
+  generateOptions as mathEngineGenerateOptions,
+  generateVariant as mathEngineGenerateVariant,
+  validateAnswer as mathEngineValidate,
+  routeFormula,
+} from "./mathEngine";
+
 // ── Public interfaces ─────────────────────────────────────
 
 export interface Settings {
@@ -853,27 +865,105 @@ export function generateVariants(
   const { chapter, subTopic } = classify(originalQuestion);
   const constraint = getConstraint(settings);
 
-  // Stage 1: Parse question structure
+  // ── NEW: mathEngine primary pipeline ───────────────────────────────────────────
+  // Try the new mathEngine pipeline first.
+  // Mandatory order: extractConditions → routeFormula → mathjs eval
+  //   → validateAnswer → generateOptions
+  // If mathEngine succeeds, use its results entirely.
+  // If mathEngine fails (unknown type), fall through to the old solver system.
+  const mathEngineVariants: VariantQuestion[] = [];
+  let mathEngineFailed = false;
+
+  try {
+    // Run the original question through the pipeline first to validate it
+    const baseConditions = extractConditions(originalQuestion);
+    const baseRoute = routeFormula(baseConditions);
+    const baseValidation = mathEngineValidate(
+      baseRoute.answer,
+      baseRoute.questionType,
+    );
+    if (!baseValidation.valid) {
+      throw new Error(baseValidation.error);
+    }
+
+    // Generate the requested number of variants
+    const existingTexts = new Set<string>([originalQuestion]);
+    let attemptsLeft = settings.quantity * 8;
+
+    while (mathEngineVariants.length < settings.quantity && attemptsLeft > 0) {
+      attemptsLeft--;
+      try {
+        const variantResult: VariantResult =
+          mathEngineGenerateVariant(originalQuestion);
+        if (existingTexts.has(variantResult.questionText)) continue;
+        existingTexts.add(variantResult.questionText);
+
+        // Map VariantResult options to VariantQuestion options format
+        const mappedOptions = variantResult.options.map((o) => ({
+          label: o.label as "A" | "B" | "C" | "D",
+          text:
+            variantResult.unit === "₹"
+              ? `₹${o.text}`
+              : variantResult.unit && variantResult.unit !== "%"
+                ? `${o.text} ${variantResult.unit}`
+                : o.text,
+          isCorrect: o.isCorrect,
+        }));
+
+        const correctText =
+          variantResult.unit === "₹"
+            ? `₹${variantResult.correctAnswer}`
+            : variantResult.unit && variantResult.unit !== "%"
+              ? `${variantResult.correctAnswer} ${variantResult.unit}`
+              : variantResult.correctAnswer;
+
+        mathEngineVariants.push({
+          id: `variant-${Date.now()}-${mathEngineVariants.length}`,
+          questionText: variantResult.questionText,
+          options: mappedOptions,
+          correctAnswer: correctText,
+          correctLabel: variantResult.correctLabel,
+          chapter,
+          subTopic,
+          solution: variantResult.solution,
+        });
+      } catch {}
+    }
+
+    if (mathEngineVariants.length === 0) {
+      mathEngineFailed = true;
+    }
+  } catch {
+    mathEngineFailed = true;
+  }
+
+  // If mathEngine produced all requested variants, return them now
+  if (!mathEngineFailed && mathEngineVariants.length >= settings.quantity) {
+    return mathEngineVariants.slice(0, settings.quantity);
+  }
+
+  // If mathEngine produced some but not all, we have a partial set
+  // Continue to old solver to fill the rest (or start from scratch if 0)
+  // ── END mathEngine primary pipeline ─────────────────────────────────────────
+
+  // Stage 1: Parse question structure (legacy path)
   const baseParsed = parseQuestion(originalQuestion);
 
   // HARDENING LAYER 1: Parser Validation
-  // Log confidence but continue — if parser missed some numbers, the
-  // solver will still try to run (it may succeed anyway).
   const parserConfident = isParserConfident(originalQuestion, baseParsed);
   if (!parserConfident && baseParsed.topic === "unknown") {
     // Parser couldn't extract structure AND missed many numbers.
-    // We still continue, the generic fallback solver will handle it.
   }
 
   // HARDENING LAYER 2: Solver Coverage Map
-  // If no dedicated solver is registered for this topic, log it.
-  // hasSolverCoverage() always returns true with our current registry
-  // but this guard will catch future topics that lack a solver.
   const coverageOk = hasSolverCoverage(baseParsed);
   if (!coverageOk) {
-    throw new Error(
-      "Unable to generate variants for this question type — solver not implemented yet",
-    );
+    // If mathEngine also failed, we truly can't solve this
+    if (mathEngineVariants.length === 0) {
+      throw new Error(
+        "Unable to generate variants for this question type — solver not implemented yet",
+      );
+    }
   }
 
   const existing = new Set<string>([originalQuestion]);
@@ -1030,11 +1120,14 @@ export function generateVariants(
     }
   }
 
-  if (variants.length === 0) {
+  // Combine mathEngine partial results with legacy solver results
+  const combined = [...mathEngineVariants, ...variants];
+
+  if (combined.length === 0) {
     throw new Error("Unable to generate variants for this question type");
   }
 
-  return variants;
+  return combined.slice(0, settings.quantity);
 }
 
 // ── Export formatting ──────────────────────────────────────

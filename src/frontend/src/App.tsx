@@ -28,36 +28,80 @@ const queryClient = new QueryClient();
 
 type Tab = "generate" | "variant" | "drill" | "vocab" | "settings";
 
+// ── iOS detection ──
+function isIOS(): boolean {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+function isStandalone(): boolean {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as unknown as { standalone?: boolean }).standalone ===
+      true
+  );
+}
+
 function AppInner() {
   const [activeTab, setActiveTab] = useState<Tab>("generate");
   const [variants, setVariants] = useState<VariantQuestion[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [prefillQuestion, setPrefillQuestion] = useState("");
+
+  // Install state
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showIOSCard, setShowIOSCard] = useState(false);
   const [installable, setInstallable] = useState(false);
-  const [installed, setInstalled] = useState(false);
+
   const { actor } = useActor();
   const { identity } = useInternetIdentity();
 
   useEffect(() => {
-    const onInstallable = () => setInstallable(true);
-    const onInstalled = () => {
-      setInstalled(true);
-      setInstallable(false);
-    };
+    // Don't show if already installed
+    const alreadyInstalled = localStorage.getItem("pwa-installed") === "true";
+    if (alreadyInstalled || isStandalone()) return;
 
-    window.addEventListener("pwa-installable", onInstallable);
-    window.addEventListener("appinstalled", onInstalled);
-
-    // If prompt was already captured before this effect ran
-    if (window.deferredInstallPrompt) {
-      setInstallable(true);
+    if (isIOS()) {
+      setShowIOSCard(true);
+      return;
     }
 
+    const handleInstallable = () => {
+      setInstallable(true);
+      setShowInstallBanner(true);
+    };
+
+    window.addEventListener("pwa-installable", handleInstallable);
+
+    // Already captured before this mounted
+    if (window.deferredInstallPrompt) {
+      setInstallable(true);
+      setShowInstallBanner(true);
+    }
+
+    const handleInstalled = () => {
+      setShowInstallBanner(false);
+      setInstallable(false);
+      localStorage.setItem("pwa-installed", "true");
+    };
+
+    window.addEventListener("appinstalled", handleInstalled);
+
     return () => {
-      window.removeEventListener("pwa-installable", onInstallable);
-      window.removeEventListener("appinstalled", onInstalled);
+      window.removeEventListener("pwa-installable", handleInstallable);
+      window.removeEventListener("appinstalled", handleInstalled);
     };
   }, []);
+
+  async function handleInstallClick() {
+    await window.triggerInstall();
+    setShowInstallBanner(false);
+    setInstallable(false);
+  }
+
+  function handleDismissBanner() {
+    setShowInstallBanner(false);
+    // Don't mark as installed — just dismissed. Keep installable true so Settings still shows it.
+  }
 
   function handleGenerate(question: string, settings: Settings) {
     if (!question.trim()) {
@@ -118,35 +162,192 @@ function AppInner() {
       className="min-h-screen flex justify-center"
       style={{ backgroundColor: "#f8fafc", minHeight: "100dvh" }}
     >
-      {/* ── PWA Install Banner ── */}
-      {installable && !installed && (
-        <button
-          type="button"
-          data-ocid="install.primary_button"
-          onClick={() => window.triggerInstall()}
+      {/* ── iOS Install Card ── */}
+      {showIOSCard && (
+        <div
           style={{
             position: "fixed",
-            top: "calc(8px + env(safe-area-inset-top))",
-            right: "12px",
-            backgroundColor: "#007BFF",
-            color: "#ffffff",
+            bottom: "calc(80px + env(safe-area-inset-bottom))",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "calc(100% - 32px)",
+            maxWidth: "440px",
+            backgroundColor: "#0a0a0f",
+            border: "1px solid #00E5FF33",
             borderRadius: "20px",
-            padding: "8px 16px",
-            fontSize: "13px",
-            fontWeight: 700,
-            zIndex: 99999,
-            border: "none",
-            cursor: "pointer",
-            boxShadow: "0 2px 12px rgba(0,123,255,0.4)",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            fontFamily: "'Figtree', sans-serif",
+            padding: "16px 18px",
+            zIndex: 99998,
+            boxShadow: "0 4px 24px rgba(0,229,255,0.18)",
           }}
         >
-          <Download size={14} />
-          Install App
-        </button>
+          <button
+            type="button"
+            onClick={() => setShowIOSCard(false)}
+            style={{
+              position: "absolute",
+              top: "10px",
+              right: "14px",
+              background: "transparent",
+              border: "none",
+              color: "#90A4AE",
+              fontSize: "18px",
+              cursor: "pointer",
+              lineHeight: 1,
+            }}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+          <div
+            style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}
+          >
+            <div
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: "10px",
+                background: "linear-gradient(135deg, #00E5FF22, #00E5FF44)",
+                border: "1px solid #00E5FF55",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              {/* Share icon (box with up arrow) */}
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#00E5FF"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-label="Share"
+                role="img"
+              >
+                <title>Share</title>
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                <polyline points="16 6 12 2 8 6" />
+                <line x1="12" y1="2" x2="12" y2="15" />
+              </svg>
+            </div>
+            <div style={{ flex: 1 }}>
+              <p
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  color: "#ffffff",
+                  marginBottom: "4px",
+                  fontFamily: "'Figtree', sans-serif",
+                }}
+              >
+                Install Variant on iPhone
+              </p>
+              <p
+                style={{ fontSize: "12px", color: "#90A4AE", lineHeight: 1.5 }}
+              >
+                Tap the{" "}
+                <svg
+                  style={{
+                    display: "inline",
+                    verticalAlign: "middle",
+                    margin: "0 2px",
+                  }}
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#00E5FF"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-label="Share"
+                  role="img"
+                >
+                  <title>Share</title>
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>{" "}
+                Share icon at the bottom of Safari, then tap{" "}
+                <span style={{ color: "#00E5FF", fontWeight: 600 }}>
+                  Add to Home Screen
+                </span>
+                .
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Android / Desktop Install Banner ── */}
+      {showInstallBanner && installable && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "calc(80px + env(safe-area-inset-bottom))",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 99998,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "6px",
+          }}
+        >
+          <button
+            type="button"
+            onClick={handleInstallClick}
+            data-ocid="install.bottom_banner"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              backgroundColor: "#0a0a0f",
+              color: "#00E5FF",
+              border: "1.5px solid #00E5FF55",
+              borderRadius: "50px",
+              padding: "11px 22px",
+              fontSize: "14px",
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow:
+                "0 4px 20px rgba(0,229,255,0.25), 0 0 0 1px rgba(0,229,255,0.1)",
+              fontFamily: "'Figtree', sans-serif",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Download size={16} color="#00E5FF" />
+            Install Variant App
+          </button>
+          <p
+            style={{
+              fontSize: "11px",
+              color: "#546E7A",
+              textAlign: "center",
+              fontFamily: "'Figtree', sans-serif",
+            }}
+          >
+            Install to use full-screen without browser bar
+          </p>
+          <button
+            type="button"
+            onClick={handleDismissBanner}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#546E7A",
+              fontSize: "11px",
+              cursor: "pointer",
+              padding: "2px 8px",
+              fontFamily: "'Figtree', sans-serif",
+            }}
+          >
+            Not now
+          </button>
+        </div>
       )}
 
       <div
@@ -220,7 +421,10 @@ function AppInner() {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.22, ease: "easeOut" }}
               >
-                <SettingsScreen />
+                <SettingsScreen
+                  installable={installable}
+                  onInstall={handleInstallClick}
+                />
               </motion.div>
             )}
           </AnimatePresence>

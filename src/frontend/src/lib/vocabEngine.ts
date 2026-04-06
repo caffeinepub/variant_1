@@ -34,45 +34,74 @@ export interface SavedWord {
 const VOCAB_STORAGE_KEY = "variant_saved_words";
 
 // ============================================================
-// MEMORY TRACKING — prevents vocabulary repetition
-// Stores the last 50 used words; enforces a cooldown of 10
-// so a word cannot reappear within the last 10 generations.
+// VOCAB NO-REPEAT ENGINE — Fisher-Yates shuffle with localStorage
+// Each difficulty tier has its own shuffled cycle stored in localStorage.
+// Every word appears exactly once per cycle, different order each cycle.
+// State survives page reloads. Never restarts from zero unless user resets.
 // ============================================================
-const usedWords: string[] = [];
-const HISTORY_LIMIT = 50;
-const COOLDOWN = 10;
 
-function recordWord(word: string): void {
-  usedWords.push(word);
-  if (usedWords.length > HISTORY_LIMIT) {
-    usedWords.shift();
-  }
-}
+import { fisherYatesShuffle } from "./mathEngine";
+
+// Per-tier localStorage keys
+const tierShuffleKey = (tier: string): string =>
+  `variant_vocab_shuffle_${tier}`;
+const tierIndexKey = (tier: string): string => `variant_vocab_index_${tier}`;
 
 /**
- * Returns true if the word is in cooldown — i.e. it appeared
- * within the last COOLDOWN generations.
+ * Pick the next word from a bank tier using Fisher-Yates + localStorage.
+ * Guarantees: every word appears exactly once per cycle, no immediate repeats.
  */
-function isOnCooldown(word: string): boolean {
-  const recent = usedWords.slice(-COOLDOWN);
-  return recent.includes(word);
-}
-
-/**
- * Pick a word from the bank that is NOT on cooldown.
- * Falls back to full list if fewer than 5 candidates remain.
- */
-function pickWord(
+function pickWordFisherYates(
   bank: (typeof WORD_BANK)[keyof typeof WORD_BANK],
+  tier: string,
 ): (typeof bank)[number] {
-  let filtered = bank.filter((entry) => !isOnCooldown(entry.word));
+  const allWords = bank.map((e) => e.word);
+  let shuffled: string[];
+  let index: number;
 
-  // Partial reuse fallback — if almost everything is on cooldown
-  if (filtered.length < 5) {
-    filtered = bank;
+  try {
+    const rawShuffled = localStorage.getItem(tierShuffleKey(tier));
+    const rawIndex = localStorage.getItem(tierIndexKey(tier));
+
+    if (!rawShuffled || !rawIndex) {
+      // First load — initialize with fresh shuffle
+      shuffled = fisherYatesShuffle(allWords);
+      localStorage.setItem(tierShuffleKey(tier), JSON.stringify(shuffled));
+      localStorage.setItem(tierIndexKey(tier), "0");
+      index = 0;
+    } else {
+      shuffled = JSON.parse(rawShuffled) as string[];
+      index = Number.parseInt(rawIndex, 10);
+
+      // Reinitialize if word bank size changed
+      if (shuffled.length !== allWords.length) {
+        shuffled = fisherYatesShuffle(allWords);
+        localStorage.setItem(tierShuffleKey(tier), JSON.stringify(shuffled));
+        localStorage.setItem(tierIndexKey(tier), "0");
+        index = 0;
+      }
+
+      // End of cycle — reshuffle with new random order, reset to 0
+      if (index >= shuffled.length) {
+        shuffled = fisherYatesShuffle(allWords);
+        localStorage.setItem(tierShuffleKey(tier), JSON.stringify(shuffled));
+        localStorage.setItem(tierIndexKey(tier), "1");
+        index = 0;
+      }
+    }
+
+    // Advance the index for next call
+    localStorage.setItem(tierIndexKey(tier), String(index + 1));
+
+    const wordName = shuffled[index];
+    return (
+      bank.find((e) => e.word === wordName) ??
+      bank[Math.floor(Math.random() * bank.length)]
+    );
+  } catch {
+    // localStorage unavailable — fall back to random
+    return bank[Math.floor(Math.random() * bank.length)];
   }
-
-  return filtered[Math.floor(Math.random() * filtered.length)];
 }
 
 export function getSavedWords(): SavedWord[] {
@@ -470,11 +499,8 @@ function getWordFromBank(
   const tier = getTierKey(difficulty);
   const bank = WORD_BANK[tier];
 
-  // Use memory-aware picker instead of raw random
-  const entry = pickWord(bank);
-
-  // Record this word in the used-words history
-  recordWord(entry.word);
+  // Use Fisher-Yates localStorage cycle picker — no repeats until all words exhausted
+  const entry = pickWordFisherYates(bank, tier as string);
 
   const correct =
     type === "synonym"

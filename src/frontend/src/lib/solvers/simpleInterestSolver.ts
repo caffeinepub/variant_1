@@ -2,9 +2,14 @@
 // SIMPLE & COMPOUND INTEREST SOLVER
 // ============================================================
 
+import { evaluate, number as mjsNumber } from "mathjs";
 import type { CompoundInterestParams, SimpleInterestParams } from "../aiParser";
 import type { ModeConstraint, SolveResult } from "./types";
 import { fmtRaw, gcd, snapToMode } from "./utils";
+
+function mjsPow(base: number, exp: number): number {
+  return mjsNumber(evaluate(`${base} ^ ${exp}`));
+}
 
 export function solveSimpleInterest(
   params: SimpleInterestParams,
@@ -114,7 +119,7 @@ export function solveCompoundInterest(
     adjustedTime = time * 4;
   }
 
-  const amount = principal * (1 + adjustedRate / 100) ** adjustedTime;
+  const amount = principal * mjsPow(1 + adjustedRate / 100, adjustedTime);
   const CI = amount - principal;
   const SI = (principal * rate * time) / 100;
 
@@ -126,7 +131,7 @@ export function solveCompoundInterest(
   // 2. Added principal twice
   const d2 = snapToMode(amount + principal, c);
   // 3. Wrong frequency (used annual when half-yearly)
-  const wrongAmount = principal * (1 + rate / 100) ** time;
+  const wrongAmount = principal * mjsPow(1 + rate / 100, time);
   const d3 = snapToMode(
     asked === "amount" ? wrongAmount : wrongAmount - principal,
     c,
