@@ -5,9 +5,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import type { Settings, VariantQuestion } from "@/lib/variantEngine";
+import type { MCQOption, Settings, VariantQuestion } from "@/lib/variantEngine";
 import { detectChapterType, formatExport } from "@/lib/variantEngine";
-import type { MCQOption } from "@/lib/variantEngine";
 import {
   Bookmark,
   ClipboardPaste,
@@ -57,6 +56,25 @@ function saveQuestion(q: SavedQuestion): void {
   localStorage.setItem(SAVED_KEY, JSON.stringify(existing));
 }
 
+async function copyQuestionToClipboard(
+  questionText: string,
+  options: MCQOption[],
+  correctLabel: string,
+): Promise<void> {
+  const lines = [questionText, ""];
+  for (const opt of options) {
+    lines.push(
+      `${opt.label}) ${opt.text}${opt.label === correctLabel ? " ✓" : ""}`,
+    );
+  }
+  try {
+    await navigator.clipboard.writeText(lines.join("\n"));
+    toast.success("Copied!");
+  } catch {
+    toast.error("Copy failed");
+  }
+}
+
 /* ── Physical 3D Toggle ──────────────────── */
 function PhysicalToggle({
   checked,
@@ -103,7 +121,7 @@ function PhysicalToggle({
   );
 }
 
-/* ── Soft Slider ────────────────────── */
+/* ── Soft Slider ────────────────── */
 function SoftSlider({
   value,
   onChange,
@@ -144,7 +162,7 @@ function SoftSlider({
   );
 }
 
-/* ── Solution Slab ──────────────────── */
+/* ── Solution Slab ────────────────── */
 function SolutionSlab({ solution }: { solution: VariantQuestion["solution"] }) {
   const [show, setShow] = useState(false);
   return (
@@ -774,7 +792,7 @@ export function GenerateScreen({
                       "0 6px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04)",
                   }}
                 >
-                  {/* Chapter badge + bookmark */}
+                  {/* Chapter badge + copy + bookmark */}
                   <div
                     className="flex items-center justify-between"
                     style={{ marginBottom: "8px" }}
@@ -812,30 +830,63 @@ export function GenerateScreen({
                         </span>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleBookmark(idx, variant)}
-                      data-ocid={`results.bookmark.${idx + 1}`}
-                      aria-label={isSaved ? "Saved" : "Save question"}
-                      style={{
-                        background: isSaved ? "#E3F2FD" : "#F0F4F8",
-                        border: "none",
-                        cursor: isSaved ? "default" : "pointer",
-                        borderRadius: "50%",
-                        width: "32px",
-                        height: "32px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-                      }}
-                    >
-                      <Bookmark
-                        size={16}
-                        fill={isSaved ? "#2196F3" : "none"}
-                        style={{ color: isSaved ? "#2196F3" : "#90A4AE" }}
-                      />
-                    </button>
+                    <div className="flex items-center" style={{ gap: "6px" }}>
+                      {/* Copy button */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          copyQuestionToClipboard(
+                            variant.questionText,
+                            variant.options,
+                            variant.correctLabel,
+                          )
+                        }
+                        data-ocid={`results.copy.${idx + 1}`}
+                        aria-label="Copy question"
+                        title="Copy question"
+                        style={{
+                          background: "#F0F4F8",
+                          border: "none",
+                          cursor: "pointer",
+                          borderRadius: "50%",
+                          width: "32px",
+                          height: "32px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Copy size={14} style={{ color: "#90A4AE" }} />
+                      </button>
+                      {/* Bookmark button */}
+                      <button
+                        type="button"
+                        onClick={() => handleBookmark(idx, variant)}
+                        data-ocid={`results.bookmark.${idx + 1}`}
+                        aria-label={isSaved ? "Saved" : "Save question"}
+                        style={{
+                          background: isSaved ? "#E3F2FD" : "#F0F4F8",
+                          border: "none",
+                          cursor: isSaved ? "default" : "pointer",
+                          borderRadius: "50%",
+                          width: "32px",
+                          height: "32px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Bookmark
+                          size={16}
+                          fill={isSaved ? "#2196F3" : "none"}
+                          style={{ color: isSaved ? "#2196F3" : "#90A4AE" }}
+                        />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Variant label */}

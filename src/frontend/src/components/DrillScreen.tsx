@@ -1,9 +1,36 @@
-import type { VariantQuestion } from "@/lib/variantEngine";
+import type { MCQOption, VariantQuestion } from "@/lib/variantEngine";
 import { generateVariants } from "@/lib/variantEngine";
-import { CheckCircle2, ClipboardPaste, Target, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  ClipboardPaste,
+  Copy,
+  Target,
+  XCircle,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
+
+async function copyQuestionToClipboard(
+  questionText: string,
+  options: MCQOption[],
+  correctLabel: string | null,
+): Promise<void> {
+  const lines = [questionText, ""];
+  for (const opt of options) {
+    lines.push(
+      `${opt.label}) ${opt.text}${
+        correctLabel && opt.label === correctLabel ? " ✓" : ""
+      }`,
+    );
+  }
+  try {
+    await navigator.clipboard.writeText(lines.join("\n"));
+    toast.success("Copied!");
+  } catch {
+    toast.error("Copy failed");
+  }
+}
 
 export function DrillScreen(_props: { variants?: VariantQuestion[] }) {
   const [drillQuestion, setDrillQuestion] = useState("");
@@ -425,19 +452,51 @@ export function DrillScreen(_props: { variants?: VariantQuestion[] }) {
                 "0 6px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04)",
             }}
           >
-            <span
-              style={{
-                fontSize: "10px",
-                fontWeight: 700,
-                color: "#90A4AE",
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                display: "block",
-                marginBottom: "8px",
-              }}
+            {/* Card header: variant label + copy button */}
+            <div
+              className="flex items-center justify-between"
+              style={{ marginBottom: "8px" }}
             >
-              VARIANT #{currentIndex + 1}
-            </span>
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  color: "#90A4AE",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.12em",
+                }}
+              >
+                VARIANT #{currentIndex + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  copyQuestionToClipboard(
+                    currentVariant.questionText,
+                    currentVariant.options,
+                    answered ? currentVariant.correctLabel : null,
+                  )
+                }
+                data-ocid={`drill.copy.${currentIndex + 1}`}
+                aria-label="Copy question"
+                title="Copy question"
+                style={{
+                  background: "#F0F4F8",
+                  border: "none",
+                  cursor: "pointer",
+                  borderRadius: "50%",
+                  width: "32px",
+                  height: "32px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
+                  flexShrink: 0,
+                }}
+              >
+                <Copy size={14} style={{ color: "#90A4AE" }} />
+              </button>
+            </div>
             <p
               style={{
                 fontSize: "14px",

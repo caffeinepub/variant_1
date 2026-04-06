@@ -11,10 +11,22 @@
   font-display: swap;
 }
 
+/* PWA immersive / edge-to-edge */
 html,
 body,
 #root {
+  height: 100%;
+  width: 100%;
+  overflow-x: hidden;
   background-color: #f8fafc !important;
+}
+
+/* Fill safe areas with app background so no white/chrome bars */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 
 /* ── Blueprint dot-grid background ── */

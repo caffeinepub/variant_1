@@ -2,12 +2,14 @@ import type { MCQOption, VariantQuestion } from "@/lib/variantEngine";
 import {
   ChevronDown,
   ChevronRight,
+  Copy,
   Folder,
   FolderOpen,
   Trash2,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 
 interface SavedQuestion {
   id: string;
@@ -33,6 +35,25 @@ function getSavedQuestions(): SavedQuestion[] {
     return JSON.parse(raw) as SavedQuestion[];
   } catch {
     return [];
+  }
+}
+
+async function copyQuestionToClipboard(
+  questionText: string,
+  options: MCQOption[],
+  correctLabel: string,
+): Promise<void> {
+  const lines = [questionText, ""];
+  for (const opt of options) {
+    lines.push(
+      `${opt.label}) ${opt.text}${opt.label === correctLabel ? " ✓" : ""}`,
+    );
+  }
+  try {
+    await navigator.clipboard.writeText(lines.join("\n"));
+    toast.success("Copied!");
+  } catch {
+    toast.error("Copy failed");
   }
 }
 
@@ -435,14 +456,9 @@ export function VariantScreen({ onNavigateToGenerate }: VariantScreenProps) {
                                   >
                                     <div style={{ padding: "0 10px 10px" }}>
                                       {questions.map((q, qi) => (
-                                        <button
+                                        <div
                                           key={q.id}
-                                          type="button"
-                                          onClick={() =>
-                                            onNavigateToGenerate(q.questionText)
-                                          }
                                           data-ocid={`variant.row.${ci + 1}.${si + 1}.${qi + 1}`}
-                                          className="w-full text-left transition-all active:scale-[0.98]"
                                           style={{
                                             borderRadius: "14px",
                                             background: "#ffffff",
@@ -453,17 +469,14 @@ export function VariantScreen({ onNavigateToGenerate }: VariantScreenProps) {
                                                 : "0",
                                             boxShadow:
                                               "0 2px 8px rgba(0,0,0,0.06)",
-                                            border: "none",
-                                            cursor: "pointer",
-                                            display: "block",
                                           }}
                                         >
-                                          {/* Question text + navigate hint */}
+                                          {/* Question header: text + copy + navigate */}
                                           <div
-                                            className="flex items-start justify-between"
+                                            className="flex items-start"
                                             style={{
                                               gap: "8px",
-                                              marginBottom: "10px",
+                                              marginBottom: "4px",
                                             }}
                                           >
                                             <p
@@ -477,26 +490,69 @@ export function VariantScreen({ onNavigateToGenerate }: VariantScreenProps) {
                                             >
                                               {q.questionText}
                                             </p>
-                                            <ChevronRight
-                                              size={14}
-                                              style={{
-                                                color: "#90A4AE",
-                                                flexShrink: 0,
-                                                marginTop: "2px",
+                                            {/* Copy button */}
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                copyQuestionToClipboard(
+                                                  q.questionText,
+                                                  q.options,
+                                                  q.correctLabel,
+                                                );
                                               }}
-                                            />
+                                              data-ocid={`variant.copy.${ci + 1}.${si + 1}.${qi + 1}`}
+                                              aria-label="Copy question"
+                                              title="Copy question"
+                                              style={{
+                                                background: "#F0F4F8",
+                                                border: "none",
+                                                cursor: "pointer",
+                                                borderRadius: "50%",
+                                                width: "32px",
+                                                height: "32px",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                boxShadow:
+                                                  "0 1px 4px rgba(0,0,0,0.08)",
+                                                flexShrink: 0,
+                                              }}
+                                            >
+                                              <Copy
+                                                size={14}
+                                                style={{ color: "#90A4AE" }}
+                                              />
+                                            </button>
                                           </div>
-                                          {/* Tap hint label */}
-                                          <p
+
+                                          {/* Navigate to generate hint */}
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              onNavigateToGenerate(
+                                                q.questionText,
+                                              )
+                                            }
                                             style={{
+                                              display: "inline-flex",
+                                              alignItems: "center",
+                                              gap: "4px",
                                               fontSize: "10px",
-                                              color: "#90A4AE",
+                                              color: "#2196F3",
                                               marginBottom: "10px",
-                                              fontWeight: 500,
+                                              fontWeight: 600,
+                                              background: "#E3F2FD",
+                                              border: "none",
+                                              borderRadius: "50px",
+                                              padding: "2px 10px",
+                                              cursor: "pointer",
                                             }}
                                           >
-                                            Tap to generate variant
-                                          </p>
+                                            <ChevronRight size={10} />
+                                            Generate variant
+                                          </button>
+
                                           {/* Options */}
                                           <div
                                             className="flex flex-col"
@@ -583,7 +639,7 @@ export function VariantScreen({ onNavigateToGenerate }: VariantScreenProps) {
                                               {q.solution.phase3}
                                             </div>
                                           )}
-                                        </button>
+                                        </div>
                                       ))}
                                     </div>
                                   </motion.div>

@@ -89,16 +89,18 @@ function AppInner() {
   return (
     <div
       className="min-h-screen flex justify-center"
-      style={{ backgroundColor: "transparent" }}
+      style={{ backgroundColor: "#f8fafc", minHeight: "100dvh" }}
     >
       <div
         className="w-full relative flex flex-col"
-        style={{ maxWidth: "480px", minHeight: "100vh" }}
+        style={{ maxWidth: "480px", minHeight: "100dvh" }}
       >
         {/* ── Scrollable Content ── */}
         <main
           className="flex-1 overflow-y-auto"
-          style={{ paddingBottom: "90px" }}
+          style={{
+            paddingBottom: "calc(90px + env(safe-area-inset-bottom))",
+          }}
         >
           <AnimatePresence mode="wait">
             {activeTab === "generate" && (
@@ -164,15 +166,18 @@ function AppInner() {
             transform: "translateX(-50%)",
             width: "100%",
             maxWidth: "480px",
-            height: "70px",
-            backgroundColor: "rgba(255,255,255,0.95)",
+            height: "calc(70px + env(safe-area-inset-bottom))",
+            paddingBottom: "env(safe-area-inset-bottom)",
+            backgroundColor: "rgba(255,255,255,0.97)",
             backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
             borderTop: "1px solid #E3EAF3",
             boxShadow: "0 -4px 20px rgba(0,0,0,0.06)",
             zIndex: 9999,
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "space-around",
+            paddingTop: "0",
           }}
         >
           {tabs.map(({ id, label, Icon }) => {
@@ -183,9 +188,10 @@ function AppInner() {
                 type="button"
                 onClick={() => setActiveTab(id)}
                 data-ocid={`nav.${id}.tab`}
-                className="flex flex-col items-center justify-center flex-1 h-full transition-all"
+                className="flex flex-col items-center justify-center flex-1 transition-all"
                 style={{
                   gap: "3px",
+                  height: "70px",
                   color: isActive ? "#2196F3" : "#9E9E9E",
                   background: "transparent",
                   border: "none",
