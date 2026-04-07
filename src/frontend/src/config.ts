@@ -10,7 +10,7 @@ import { HttpAgent } from "@icp-sdk/core/agent";
 const DEFAULT_STORAGE_GATEWAY_URL = "https://blob.caffeine.ai";
 const DEFAULT_BUCKET_NAME = "default-bucket";
 const DEFAULT_PROJECT_ID = "0000000-0000-0000-0000-00000000000";
-const FALLBACK_CANISTER_ID = "aaaaa-aa";
+const ANONYMOUS_CANISTER_ID = "aaaaa-aa";
 
 interface JsonConfig {
   backend_host: string;
@@ -41,21 +41,19 @@ export async function loadConfig(): Promise<Config> {
     const response = await fetch(`${baseUrl}env.json`);
     const config = (await response.json()) as JsonConfig;
 
-    // Resolve the canister ID -- never throw, fall back gracefully
-    let resolvedCanisterId: string;
-    if (config.backend_canister_id && config.backend_canister_id !== "undefined") {
-      resolvedCanisterId = config.backend_canister_id;
-    } else if (backendCanisterId) {
-      resolvedCanisterId = backendCanisterId;
-    } else {
+    const resolvedCanisterId =
+      config.backend_canister_id !== "undefined"
+        ? config.backend_canister_id
+        : backendCanisterId ?? ANONYMOUS_CANISTER_ID;
+
+    if (resolvedCanisterId === ANONYMOUS_CANISTER_ID || !resolvedCanisterId) {
       console.warn("[config] Canister ID not available, using anonymous fallback");
-      resolvedCanisterId = FALLBACK_CANISTER_ID;
     }
 
     const fullConfig: Config = {
       backend_host:
         config.backend_host === "undefined" ? undefined : config.backend_host,
-      backend_canister_id: resolvedCanisterId,
+      backend_canister_id: resolvedCanisterId || ANONYMOUS_CANISTER_ID,
       storage_gateway_url: process.env.STORAGE_GATEWAY_URL ?? "nogateway",
       bucket_name: DEFAULT_BUCKET_NAME,
       project_id:
@@ -70,19 +68,17 @@ export async function loadConfig(): Promise<Config> {
     configCache = fullConfig;
     return fullConfig;
   } catch {
-    // Network error or JSON parse failure -- return safe fallback, never throw
-    const resolvedCanisterId = backendCanisterId ?? FALLBACK_CANISTER_ID;
-    if (!backendCanisterId) {
-      console.warn("[config] Canister ID not available, using anonymous fallback");
-    }
+    // Never throw — always return a safe fallback so the app can load
+    console.warn("[config] Canister ID not available, using anonymous fallback");
     const fallbackConfig: Config = {
       backend_host: undefined,
-      backend_canister_id: resolvedCanisterId,
+      backend_canister_id: backendCanisterId ?? ANONYMOUS_CANISTER_ID,
       storage_gateway_url: DEFAULT_STORAGE_GATEWAY_URL,
       bucket_name: DEFAULT_BUCKET_NAME,
       project_id: DEFAULT_PROJECT_ID,
       ii_derivation_origin: undefined,
     };
+    configCache = fallbackConfig;
     return fallbackConfig;
   }
 }
@@ -124,6 +120,7 @@ async function maybeLoadMockBackend(): Promise<backendInterface | null> {
 export async function createActorWithConfig(
   options?: CreateActorOptions,
 ): Promise<backendInterface> {
+  // Attempt to load mock backend if enabled
   const mock = await maybeLoadMockBackend();
   if (mock) {
     return mock;

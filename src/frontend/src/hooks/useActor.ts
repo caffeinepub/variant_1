@@ -31,11 +31,8 @@ export function useActor() {
         await actor._initializeAccessControlWithSecret(adminToken);
         return actor;
       } catch (err) {
-        // Never propagate actor creation errors -- app must load regardless
-        console.warn(
-          "[useActor] Actor creation failed, running in offline mode:",
-          err,
-        );
+        // Actor failure must never crash the app -- return null
+        console.warn("[useActor] Actor creation failed (non-fatal):", err);
         return null;
       }
     },

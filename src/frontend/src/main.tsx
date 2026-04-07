@@ -15,11 +15,9 @@ declare global {
   }
 }
 
-// ── Global unhandled rejection logger ──
-// Prevents silent white screens caused by async promise failures
+// ── Global error handler to prevent silent white screens ──
 window.addEventListener("unhandledrejection", (event) => {
   console.error("[Variant] Unhandled promise rejection:", event.reason);
-  // Log only -- do not suppress or rethrow
 });
 
 // ── Error Boundary ──
@@ -29,10 +27,10 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends React.Component<
-  { children: React.ReactNode },
+  React.PropsWithChildren<Record<string, unknown>>,
   ErrorBoundaryState
 > {
-  constructor(props: { children: React.ReactNode }) {
+  constructor(props: React.PropsWithChildren<Record<string, unknown>>) {
     super(props);
     this.state = { hasError: false, error: null };
   }
@@ -50,31 +48,39 @@ class ErrorBoundary extends React.Component<
       return (
         <div
           style={{
+            position: "fixed",
+            inset: 0,
             background: "#0a0a0f",
-            minHeight: "100vh",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            flexDirection: "column",
             gap: "16px",
             padding: "24px",
-            textAlign: "center",
             fontFamily: "sans-serif",
           }}
         >
-          <p style={{ color: "#20E6E6", fontSize: "18px", fontWeight: 600 }}>
+          <p
+            style={{
+              color: "#20E6E6",
+              fontSize: "16px",
+              fontWeight: 600,
+              textAlign: "center",
+            }}
+          >
             Something went wrong loading the app.
           </p>
           <button
             type="button"
             onClick={() => window.location.reload()}
             style={{
-              background: "transparent",
-              border: "1.5px solid #20E6E6",
-              color: "#20E6E6",
-              borderRadius: "8px",
-              padding: "10px 24px",
+              padding: "10px 28px",
+              borderRadius: "50px",
+              background: "#20E6E6",
+              color: "#0a0a0f",
+              border: "none",
               fontSize: "14px",
+              fontWeight: 700,
               cursor: "pointer",
             }}
           >
@@ -84,10 +90,10 @@ class ErrorBoundary extends React.Component<
             <p
               style={{
                 color: "#546E7A",
-                fontSize: "12px",
-                maxWidth: "360px",
+                fontSize: "11px",
+                maxWidth: "320px",
+                textAlign: "center",
                 wordBreak: "break-word",
-                marginTop: "8px",
               }}
             >
               {this.state.error.message}
@@ -100,9 +106,17 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+const root = ReactDOM.createRoot(document.getElementById("root")!);
+
+root.render(
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <InternetIdentityProvider>
@@ -112,6 +126,15 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   </ErrorBoundary>,
 );
 
-// Hide the initial loading spinner now that React has rendered
+// ── Hide initial loader once React has rendered ──
 const loader = document.getElementById("initial-loader");
-if (loader) loader.style.display = "none";
+if (loader) {
+  // Small delay so React has time to paint the first frame
+  setTimeout(() => {
+    loader.style.transition = "opacity 0.3s ease";
+    loader.style.opacity = "0";
+    setTimeout(() => {
+      loader.style.display = "none";
+    }, 300);
+  }, 100);
+}
