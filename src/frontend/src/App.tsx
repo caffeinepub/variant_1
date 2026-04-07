@@ -4,11 +4,7 @@ import { SettingsScreen } from "@/components/SettingsScreen";
 import { VariantScreen } from "@/components/VariantScreen";
 import { VocabScreen } from "@/components/VocabScreen";
 import { Toaster } from "@/components/ui/sonner";
-import {
-  SolverApiError,
-  generateVariantFromServer,
-  solveQuestion,
-} from "@/lib/solverApi";
+import { generateVariantJS, solveQuestionJS } from "@/lib/jsEngine";
 import { classify } from "@/lib/variantEngine";
 import type { Settings, VariantQuestion } from "@/lib/variantEngine";
 import {
@@ -105,7 +101,7 @@ export default function App() {
     setShowInstallBanner(false);
   }
 
-  async function handleGenerate(question: string, settings: Settings) {
+  function handleGenerate(question: string, settings: Settings) {
     if (!question.trim()) {
       toast.error("Please enter a question first.");
       return;
@@ -115,19 +111,20 @@ export default function App() {
     setServerError(null);
 
     try {
-      // First call: solve the base question
-      const baseResult = await solveQuestion(question.trim());
-      const baseConditions = baseResult.conditions;
+      // Solve base question (synchronous, in-browser)
+      const baseResult = solveQuestionJS(question.trim(), settings);
 
-      // Build additional variant calls (quantity - 1)
+      // Generate additional variants
       const additionalCount = settings.quantity - 1;
-      const variantPromises = Array.from({ length: additionalCount }, () =>
-        generateVariantFromServer(question.trim(), baseConditions),
-      );
+      const variantResults = Array.from({ length: additionalCount }, () => {
+        try {
+          return generateVariantJS(question.trim(), settings);
+        } catch {
+          return null;
+        }
+      });
 
-      const variantResults = await Promise.allSettled(variantPromises);
-
-      // Helper to convert server result to VariantQuestion
+      // Helper to convert JS engine result to VariantQuestion
       function toVariantQuestion(
         result: typeof baseResult,
         questionText: string,
@@ -143,7 +140,7 @@ export default function App() {
         const correctLabel = labels[result.correct_index];
         const steps = result.solution_steps ?? [];
         return {
-          id: `server-${Date.now()}-${idx}`,
+          id: `js-${Date.now()}-${idx}`,
           questionText,
           options,
           correctAnswer: result.answer.display,
@@ -162,11 +159,9 @@ export default function App() {
         toVariantQuestion(baseResult, question.trim(), 0),
         ...variantResults
           .map((r, i) => {
-            if (r.status === "fulfilled") {
-              const qText = r.value.new_question_text ?? question.trim();
-              return toVariantQuestion(r.value, qText, i + 1);
-            }
-            return null;
+            if (!r) return null;
+            const qText = r.new_question_text ?? question.trim();
+            return toVariantQuestion(r, qText, i + 1);
           })
           .filter((v): v is VariantQuestion => v !== null),
       ];
@@ -200,10 +195,8 @@ export default function App() {
           });
       }
     } catch (err: unknown) {
-      let message = "Something went wrong";
-      if (err instanceof SolverApiError) {
-        message = err.message;
-      } else if (err instanceof Error) {
+      let message = "Could not solve question";
+      if (err instanceof Error) {
         message = err.message;
       }
       setServerError(message);

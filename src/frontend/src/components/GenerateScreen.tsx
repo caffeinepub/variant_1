@@ -724,7 +724,7 @@ export function GenerateScreen({
         GENERATE VARIANTS
       </button>
 
-      {/* ── Server Error Card ── */}
+      {/* ── Error Card ── */}
       {serverError && !isLoading && (
         <div
           style={{
@@ -734,6 +734,7 @@ export function GenerateScreen({
             padding: "16px",
             marginBottom: "4px",
           }}
+          data-ocid="results.error_state"
         >
           <p
             style={{
@@ -744,7 +745,7 @@ export function GenerateScreen({
               fontFamily: "'Figtree', sans-serif",
             }}
           >
-            ❌ Server Error
+            ❌ Could not solve question
           </p>
           <p
             style={{
@@ -764,7 +765,8 @@ export function GenerateScreen({
               fontFamily: "'Figtree', sans-serif",
             }}
           >
-            Make sure the Python server is running on localhost:8000
+            Try rephrasing with clearer keywords (e.g. "profit", "discount",
+            "speed", "mixture").
           </p>
         </div>
       )}
@@ -800,7 +802,7 @@ export function GenerateScreen({
               fontFamily: "'Figtree', sans-serif",
             }}
           >
-            Solving on server...
+            Solving...
           </p>
           <style>
             {"@keyframes spin { to { transform: rotate(360deg); } }"}

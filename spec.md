@@ -1,47 +1,49 @@
-# VARIANT — Python Math Solver Server
+# VARIANT
 
 ## Current State
 
-The VARIANT app is a React/TypeScript PWA with a full frontend-only math engine:
-- `mathEngine.ts` — Modules 1–5: extractConditions, routeFormula, validateAnswer, generateOptions, generateVariant (all using mathjs)
-- `variantEngine.ts` — Primary pipeline orchestrator, falling back to legacy solver files
-- `aiParser.ts`, `optionGenerator.ts`, and `solvers/*.ts` — Legacy solver files
-- `App.tsx` handles `generateVariants()` call via `handleGenerate()`
-- `GenerateScreen.tsx` renders variants, options, and the MCQ UI
+The app has a fully-featured frontend (React/TypeScript) with all UI, navigation, vocab engine, PWA setup, and settings intact. Math question solving is done via `solverApi.ts` which calls a Python FastAPI server at `http://localhost:8000`. This server is NOT available on the deployed URL — users get "failed to fetch" when they open the live app and try to generate questions.
 
-The frontend currently does ALL math: extraction, formula routing, sympy-equivalent evaluation, validation, option generation, and variant generation.
+The frontend already has:
+- `mathEngine.ts` — a large but partially-used JS engine (not fully wired as primary)
+- `variantEngine.ts` — variant generation logic
+- Individual solvers: `profitLossSolver.ts`, `mixtureSolver.ts`, `averagesSolver.ts`, `percentageSolver.ts`, `ratioSolver.ts`, `simpleInterestSolver.ts`, `timeDistanceSolver.ts`, `workTimeSolver.ts`, `workWagesSolver.ts`
+- `optionGenerator.ts` — magnitude-aware option builder with sign enforcement
+- `solverApi.ts` — only used for Python server calls (to be replaced)
+- `aiParser.ts` — question text parser
 
 ## Requested Changes (Diff)
 
 ### Add
-- `src/python-server/` directory with a complete FastAPI Python server
-  - `main.py` — FastAPI app, CORS, endpoints: POST /api/solve, POST /api/variant, GET /api/health
-  - `extractor.py` — `extract_conditions()` function (regex-based number/keyword extractor)
-  - `solver.py` — `solve_question()` function (sympy-based exact math solver)
-  - `validator.py` — `validate_answer()` function (sign and range validator)
-  - `options.py` — `generate_options()` function (magnitude-aware 4-option generator)
-  - `variants.py` — `generate_variant()` function (true variant: new numbers + recomputed answer)
-  - `requirements.txt` — fastapi, uvicorn, sympy, python-multipart
-  - `README.md` — how to run the server
-- `src/frontend/src/lib/solverApi.ts` — single-file API client with `SOLVER_URL` const and typed functions: `solveQuestion()`, `generateVariant()`, `checkHealth()`
+- A new `jsEngine.ts` module that wraps the existing solvers into a single pipeline: `extractConditions → routeFormula → mathjs evaluation → validateAnswer → generateOptions`
+- Unit extraction: detects the unit being asked for (%, Rs, days, hours, km, kg, litres) from question text and attaches to every option
+- Sign enforcement: no negative options unless it's a loss question
+- The JS engine must return results in the same shape as `SolveResult` / `VariantResult` from `solverApi.ts`
 
 ### Modify
-- `App.tsx` — `handleGenerate()` now calls `solverApi.solveQuestion()` (POST /api/solve) instead of `generateVariants()`. Shows loading spinner. Shows red error card on server error. Displays returned options directly.
-- `GenerateScreen.tsx` — receives options directly from server response (already `{ label, text, isCorrect }` format). Pass loading state and error state as props. Show spinner while awaiting server. Show error in red card if server returns error.
+- `App.tsx` `handleGenerate`: replace calls to `solveQuestion()` and `generateVariantFromServer()` with calls to the new JS engine. No server calls. No loading state for network. Results are synchronous (or very fast).
+- `solverApi.ts`: keep for reference/types but no longer called in the main flow
+- Error handling: if JS engine fails, show a clear error message to the user with what step failed
 
 ### Remove
-- No files deleted. All existing math logic files (`mathEngine.ts`, `variantEngine.ts`, `solvers/*.ts`) remain in place but are no longer called from the main generate flow. They serve as dead code that can be cleaned up later.
+- Dependency on `SOLVER_URL = "http://localhost:8000"` in the main generation flow
+- Network errors about "failed to fetch" or "make sure Python server is running"
 
 ## Implementation Plan
 
-1. Create `src/python-server/requirements.txt` with: fastapi, uvicorn[standard], sympy, python-multipart
-2. Create `src/python-server/extractor.py` — regex extraction of numbers and keywords, unknownAsked detection, unit assignment
-3. Create `src/python-server/solver.py` — sympy.Rational-based solver for all question types
-4. Create `src/python-server/validator.py` — sign/range validation by unit field
-5. Create `src/python-server/options.py` — magnitude-aware 4-option generator with sign protection, uniqueness, and correct-answer guarantee
-6. Create `src/python-server/variants.py` — variant generator that regenerates numbers and runs full pipeline
-7. Create `src/python-server/main.py` — FastAPI app with CORS, /api/solve, /api/variant, /api/health
-8. Create `src/python-server/README.md` — setup and run instructions
-9. Create `src/frontend/src/lib/solverApi.ts` — typed API client with SOLVER_URL, solveQuestion(), generateVariant(), checkHealth()
-10. Update `App.tsx` — replace generateVariants() call with solverApi.solveQuestion(), add loading/error state
-11. Update `GenerateScreen.tsx` — add loading spinner prop, error card prop, accept server-formatted options directly
+1. Create `src/frontend/src/lib/jsEngine.ts`:
+   - `extractConditions(text)`: regex-based extraction of numbers, keywords, unit detection, unknownAsked
+   - `routeAndSolve(conditions)`: routes to the correct existing solver based on questionType
+   - `validateAnswer(answer, unit)`: blocks negative % / Rs / days (except loss questions)
+   - `generateOptions(correct, unit, mode)`: uses existing `buildOptions` from `optionGenerator.ts`
+   - `generateVariantJS(question, settings)`: mutates numbers ±10-40%, re-runs pipeline, retries 5x
+   - `solveQuestionJS(question, settings)`: full pipeline, returns `SolveResult`-compatible object
+
+2. Update `App.tsx`:
+   - Import `solveQuestionJS` and `generateVariantJS` from `jsEngine.ts`
+   - Replace `solveQuestion()` with `solveQuestionJS()`
+   - Replace `generateVariantFromServer()` with `generateVariantJS()`
+   - Remove Python server health check / error messages about localhost
+   - Keep all UI, structure, and other logic unchanged
+
+3. Keep all existing solver files unchanged — jsEngine.ts acts as orchestrator

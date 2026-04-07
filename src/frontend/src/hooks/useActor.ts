@@ -9,35 +9,30 @@ const ACTOR_QUERY_KEY = "actor";
 export function useActor() {
   const { identity } = useInternetIdentity();
   const queryClient = useQueryClient();
-  const actorQuery = useQuery<backendInterface | null>({
+  const actorQuery = useQuery<backendInterface>({
     queryKey: [ACTOR_QUERY_KEY, identity?.getPrincipal().toString()],
     queryFn: async () => {
-      try {
-        const isAuthenticated = !!identity;
+      const isAuthenticated = !!identity;
 
-        if (!isAuthenticated) {
-          // Return anonymous actor if not authenticated
-          return await createActorWithConfig();
-        }
-
-        const actorOptions = {
-          agentOptions: {
-            identity,
-          },
-        };
-
-        const actor = await createActorWithConfig(actorOptions);
-        const adminToken = getSecretParameter("caffeineAdminToken") || "";
-        await actor._initializeAccessControlWithSecret(adminToken);
-        return actor;
-      } catch (err) {
-        // Actor failure must never crash the app -- return null
-        console.warn("[useActor] Actor creation failed (non-fatal):", err);
-        return null;
+      if (!isAuthenticated) {
+        // Return anonymous actor if not authenticated
+        return await createActorWithConfig();
       }
+
+      const actorOptions = {
+        agentOptions: {
+          identity,
+        },
+      };
+
+      const actor = await createActorWithConfig(actorOptions);
+      const adminToken = getSecretParameter("caffeineAdminToken") || "";
+      await actor._initializeAccessControlWithSecret(adminToken);
+      return actor;
     },
     // Only refetch when identity changes
     staleTime: Number.POSITIVE_INFINITY,
+    // This will cause the actor to be recreated when the identity changes
     enabled: true,
   });
 

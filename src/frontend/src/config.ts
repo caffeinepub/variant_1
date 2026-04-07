@@ -10,7 +10,6 @@ import { HttpAgent } from "@icp-sdk/core/agent";
 const DEFAULT_STORAGE_GATEWAY_URL = "https://blob.caffeine.ai";
 const DEFAULT_BUCKET_NAME = "default-bucket";
 const DEFAULT_PROJECT_ID = "0000000-0000-0000-0000-00000000000";
-const ANONYMOUS_CANISTER_ID = "aaaaa-aa";
 
 interface JsonConfig {
   backend_host: string;
@@ -40,20 +39,17 @@ export async function loadConfig(): Promise<Config> {
   try {
     const response = await fetch(`${baseUrl}env.json`);
     const config = (await response.json()) as JsonConfig;
-
-    const resolvedCanisterId =
-      config.backend_canister_id !== "undefined"
-        ? config.backend_canister_id
-        : backendCanisterId ?? ANONYMOUS_CANISTER_ID;
-
-    if (resolvedCanisterId === ANONYMOUS_CANISTER_ID || !resolvedCanisterId) {
-      console.warn("[config] Canister ID not available, using anonymous fallback");
+    if (!backendCanisterId && config.backend_canister_id === "undefined") {
+      console.error("CANISTER_ID_BACKEND is not set");
+      throw new Error("CANISTER_ID_BACKEND is not set");
     }
 
-    const fullConfig: Config = {
+    const fullConfig = {
       backend_host:
         config.backend_host === "undefined" ? undefined : config.backend_host,
-      backend_canister_id: resolvedCanisterId || ANONYMOUS_CANISTER_ID,
+      backend_canister_id: (config.backend_canister_id === "undefined"
+        ? backendCanisterId
+        : config.backend_canister_id) as string,
       storage_gateway_url: process.env.STORAGE_GATEWAY_URL ?? "nogateway",
       bucket_name: DEFAULT_BUCKET_NAME,
       project_id:
@@ -68,17 +64,18 @@ export async function loadConfig(): Promise<Config> {
     configCache = fullConfig;
     return fullConfig;
   } catch {
-    // Never throw — always return a safe fallback so the app can load
-    console.warn("[config] Canister ID not available, using anonymous fallback");
-    const fallbackConfig: Config = {
+    if (!backendCanisterId) {
+      console.error("CANISTER_ID_BACKEND is not set");
+      throw new Error("CANISTER_ID_BACKEND is not set");
+    }
+    const fallbackConfig = {
       backend_host: undefined,
-      backend_canister_id: backendCanisterId ?? ANONYMOUS_CANISTER_ID,
+      backend_canister_id: backendCanisterId,
       storage_gateway_url: DEFAULT_STORAGE_GATEWAY_URL,
       bucket_name: DEFAULT_BUCKET_NAME,
       project_id: DEFAULT_PROJECT_ID,
       ii_derivation_origin: undefined,
     };
-    configCache = fallbackConfig;
     return fallbackConfig;
   }
 }
@@ -102,6 +99,8 @@ async function maybeLoadMockBackend(): Promise<backendInterface | null> {
   }
 
   try {
+    // If VITE_USE_MOCK is enabled, try to load a mock backend module *if it exists*.
+    // We use import.meta.glob so builds don't fail when the mock file is absent.
     const mockModules = import.meta.glob("./mocks/backend.{ts,tsx,js,jsx}");
 
     const path = Object.keys(mockModules)[0];
