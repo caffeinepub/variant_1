@@ -24,7 +24,6 @@ interface GenerateScreenProps {
   currentQuestion: string;
   variants: VariantQuestion[];
   prefillQuestion?: string;
-  isLoading?: boolean;
   serverError?: string | null;
 }
 
@@ -280,7 +279,6 @@ export function GenerateScreen({
   currentQuestion,
   variants,
   prefillQuestion,
-  isLoading = false,
   serverError = null,
 }: GenerateScreenProps) {
   const [question, setQuestion] = useState(
@@ -725,7 +723,7 @@ export function GenerateScreen({
       </button>
 
       {/* ── Error Card ── */}
-      {serverError && !isLoading && (
+      {serverError && (
         <div
           style={{
             background: "#FFEBEE",
@@ -768,45 +766,6 @@ export function GenerateScreen({
             Try rephrasing with clearer keywords (e.g. "profit", "discount",
             "speed", "mixture").
           </p>
-        </div>
-      )}
-
-      {/* ── Loading Spinner ── */}
-      {isLoading && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "40px 0",
-            gap: "14px",
-          }}
-          data-ocid="results.loading_state"
-        >
-          <div
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              border: "3px solid #E3EAF3",
-              borderTopColor: "#2196F3",
-              animation: "spin 0.8s linear infinite",
-            }}
-          />
-          <p
-            style={{
-              fontSize: "13px",
-              color: "#90A4AE",
-              fontWeight: 500,
-              fontFamily: "'Figtree', sans-serif",
-            }}
-          >
-            Solving...
-          </p>
-          <style>
-            {"@keyframes spin { to { transform: rotate(360deg); } }"}
-          </style>
         </div>
       )}
 

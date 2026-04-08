@@ -2,14 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Immersive PWA display ── */
+/* ── Base reset ── */
 html,
 body {
   margin: 0;
   padding: 0;
-  overscroll-behavior: none;
-  -webkit-tap-highlight-color: transparent;
-  -webkit-overflow-scrolling: touch;
 }
 
 /* ── Figtree font ── */
@@ -21,7 +18,7 @@ body {
   font-display: swap;
 }
 
-/* PWA immersive / edge-to-edge */
+/* ── Layout base ── */
 html,
 body,
 #root {
@@ -29,14 +26,6 @@ body,
   width: 100%;
   overflow-x: hidden;
   background-color: #f8fafc !important;
-}
-
-/* Fill safe areas with app background so no white/chrome bars */
-body {
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
-  padding-right: env(safe-area-inset-right);
 }
 
 /* ── Blueprint dot-grid background ── */

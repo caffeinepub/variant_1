@@ -3,10 +3,8 @@ import {
   CheckCircle2,
   Cloud,
   Copy,
-  Download,
   LogIn,
   LogOut,
-  Smartphone,
   User,
   Wifi,
   WifiOff,
@@ -15,15 +13,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 
-interface SettingsScreenProps {
-  installable?: boolean;
-  onInstall?: () => void;
-}
-
-export function SettingsScreen({
-  installable = false,
-  onInstall,
-}: SettingsScreenProps) {
+export function SettingsScreen() {
   const { identity, login, clear, isLoggingIn, isInitializing } =
     useInternetIdentity();
   const [copied, setCopied] = useState(false);
@@ -33,12 +23,6 @@ export function SettingsScreen({
   const truncatedPrincipal = principal
     ? `${principal.slice(0, 8)}...${principal.slice(-6)}`
     : null;
-
-  const alreadyInstalled = localStorage.getItem("pwa-installed") === "true";
-  const isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as unknown as { standalone?: boolean }).standalone ===
-      true;
 
   async function handleCopyPrincipal() {
     if (!principal) return;
@@ -67,9 +51,6 @@ export function SettingsScreen({
       {text}
     </p>
   );
-
-  // Show install section if: installable and not yet installed, or not in standalone
-  const showInstallSection = !alreadyInstalled && !isStandalone;
 
   return (
     <div
@@ -105,136 +86,6 @@ export function SettingsScreen({
       </div>
 
       <div className="flex flex-col" style={{ gap: "20px" }}>
-        {/* ── Install App Section ── */}
-        {showInstallSection && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-          >
-            {sectionLabel("Install App")}
-            <div
-              style={{
-                borderRadius: "24px",
-                background: "#ffffff",
-                padding: "20px",
-                boxShadow:
-                  "0 6px 24px rgba(0,0,0,0.09), 0 1px 4px rgba(0,0,0,0.04)",
-              }}
-            >
-              <div
-                className="flex items-center"
-                style={{ gap: "16px", marginBottom: "16px" }}
-              >
-                <div
-                  style={{
-                    width: 52,
-                    height: 52,
-                    borderRadius: "16px",
-                    background: "linear-gradient(135deg, #E3F2FD, #BBDEFB)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: "0 4px 14px rgba(33,150,243,0.18)",
-                    flexShrink: 0,
-                  }}
-                >
-                  <Smartphone size={24} style={{ color: "#2196F3" }} />
-                </div>
-                <div className="flex-1">
-                  <p
-                    style={{
-                      fontFamily: "'Figtree', sans-serif",
-                      fontSize: "16px",
-                      fontWeight: 700,
-                      color: "#212121",
-                    }}
-                  >
-                    Add to Home Screen
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "12px",
-                      color: "#90A4AE",
-                      marginTop: "2px",
-                    }}
-                  >
-                    Full-screen, no browser bar
-                  </p>
-                </div>
-              </div>
-
-              {installable && onInstall ? (
-                <button
-                  type="button"
-                  onClick={onInstall}
-                  data-ocid="settings.install_button"
-                  className="w-full flex items-center justify-center font-bold transition-all active:scale-[0.98]"
-                  style={{
-                    gap: "8px",
-                    height: "50px",
-                    borderRadius: "50px",
-                    background: "linear-gradient(135deg, #2196F3, #1565C0)",
-                    color: "#ffffff",
-                    border: "none",
-                    fontSize: "14px",
-                    boxShadow: "0 6px 20px rgba(33,150,243,0.35)",
-                    cursor: "pointer",
-                    fontFamily: "'Figtree', sans-serif",
-                  }}
-                >
-                  <Download size={16} />
-                  Install Variant App
-                </button>
-              ) : (
-                <div
-                  style={{
-                    background: "#F8F9FA",
-                    borderRadius: "16px",
-                    padding: "14px 16px",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: "12px",
-                      color: "#546E7A",
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    Open this app in Chrome on Android, then tap the menu (⋮)
-                    and select{" "}
-                    <strong style={{ color: "#1565C0" }}>Install app</strong>.
-                    On Safari (iOS), tap the Share icon{" "}
-                    <svg
-                      style={{ display: "inline", verticalAlign: "middle" }}
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="#2196F3"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-label="Share"
-                      role="img"
-                    >
-                      <title>Share</title>
-                      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                      <polyline points="16 6 12 2 8 6" />
-                      <line x1="12" y1="2" x2="12" y2="15" />
-                    </svg>{" "}
-                    then{" "}
-                    <strong style={{ color: "#1565C0" }}>
-                      Add to Home Screen
-                    </strong>
-                    .
-                  </p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        )}
-
         {/* ── Cloud Connect ── */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}

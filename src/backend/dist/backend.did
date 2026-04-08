@@ -1,0 +1,47 @@
+type Variant = 
+ record {
+   correctOption: text;
+   optionA: text;
+   optionB: text;
+   optionC: text;
+   questionText: text;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = record {name: text;};
+type SessionId = text;
+type Session = 
+ record {
+   id: SessionId;
+   originalQuestion: text;
+   settings: GenerationSettings;
+   timestamp: int;
+   user: principal;
+   variants: vec Variant;
+ };
+type GenerationSettings = 
+ record {
+   decimalPrecision: nat;
+   fractionMode: bool;
+   integerOnly: bool;
+   quantity: nat;
+ };
+service : {
+  _initializeAccessControl: () -> ();
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  countSessions: () -> (nat) query;
+  deleteSession: (id: SessionId) -> ();
+  getAllSessions: () -> (vec Session) query;
+  getCallerUserProfile: () -> (opt UserProfile) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getSession: (id: SessionId) -> (Session) query;
+  getUserProfile: (user: principal) -> (opt UserProfile) query;
+  isCallerAdmin: () -> (bool) query;
+  saveCallerUserProfile: (profile: UserProfile) -> ();
+  saveSession: (id: SessionId, originalQuestion: text, settings:
+   GenerationSettings, variants: vec Variant) -> (SessionId);
+}

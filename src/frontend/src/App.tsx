@@ -9,32 +9,18 @@ import { classify } from "@/lib/variantEngine";
 import type { Settings, VariantQuestion } from "@/lib/variantEngine";
 import {
   BookOpen,
-  Download,
   FolderOpen,
   Home,
   Settings as SettingsIcon,
   Target,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useActor } from "./hooks/useActor";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 
 type Tab = "generate" | "variant" | "drill" | "vocab" | "settings";
-
-// ── iOS detection ──
-function isIOS(): boolean {
-  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
-}
-
-function isStandalone(): boolean {
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as unknown as { standalone?: boolean }).standalone ===
-      true
-  );
-}
 
 // App is the single exported component -- providers live in main.tsx
 export default function App() {
@@ -42,64 +28,11 @@ export default function App() {
   const [variants, setVariants] = useState<VariantQuestion[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState("");
   const [prefillQuestion, setPrefillQuestion] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-
-  // Install state
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [showIOSCard, setShowIOSCard] = useState(false);
-  const [installable, setInstallable] = useState(false);
 
   // Actor is used for non-blocking session saving only -- never gates the app shell
   const { actor } = useActor();
   const { identity } = useInternetIdentity();
-
-  useEffect(() => {
-    // Don't show if already installed
-    const alreadyInstalled = localStorage.getItem("pwa-installed") === "true";
-    if (alreadyInstalled || isStandalone()) return;
-
-    if (isIOS()) {
-      setShowIOSCard(true);
-      return;
-    }
-
-    const handleInstallable = () => {
-      setInstallable(true);
-      setShowInstallBanner(true);
-    };
-
-    window.addEventListener("pwa-installable", handleInstallable);
-
-    // Already captured before this mounted
-    if (window.deferredInstallPrompt) {
-      setInstallable(true);
-      setShowInstallBanner(true);
-    }
-
-    const handleInstalled = () => {
-      setShowInstallBanner(false);
-      setInstallable(false);
-      localStorage.setItem("pwa-installed", "true");
-    };
-
-    window.addEventListener("appinstalled", handleInstalled);
-
-    return () => {
-      window.removeEventListener("pwa-installable", handleInstallable);
-      window.removeEventListener("appinstalled", handleInstalled);
-    };
-  }, []);
-
-  async function handleInstallClick() {
-    await window.triggerInstall();
-    setShowInstallBanner(false);
-    setInstallable(false);
-  }
-
-  function handleDismissBanner() {
-    setShowInstallBanner(false);
-  }
 
   function handleGenerate(question: string, settings: Settings) {
     if (!question.trim()) {
@@ -107,7 +40,6 @@ export default function App() {
       return;
     }
 
-    setIsLoading(true);
     setServerError(null);
 
     try {
@@ -201,8 +133,6 @@ export default function App() {
       }
       setServerError(message);
       toast.error(message);
-    } finally {
-      setIsLoading(false);
     }
   }
 
@@ -224,193 +154,6 @@ export default function App() {
       className="min-h-screen flex justify-center"
       style={{ backgroundColor: "#f8fafc", minHeight: "100dvh" }}
     >
-      {/* ── iOS Install Card ── */}
-      {showIOSCard && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "calc(80px + env(safe-area-inset-bottom))",
-            left: "50%",
-            transform: "translateX(-50%)",
-            width: "calc(100% - 32px)",
-            maxWidth: "440px",
-            backgroundColor: "#0a0a0f",
-            border: "1px solid #00E5FF33",
-            borderRadius: "20px",
-            padding: "16px 18px",
-            zIndex: 99998,
-            boxShadow: "0 4px 24px rgba(0,229,255,0.18)",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setShowIOSCard(false)}
-            style={{
-              position: "absolute",
-              top: "10px",
-              right: "14px",
-              background: "transparent",
-              border: "none",
-              color: "#90A4AE",
-              fontSize: "18px",
-              cursor: "pointer",
-              lineHeight: 1,
-            }}
-            aria-label="Dismiss"
-          >
-            ×
-          </button>
-          <div
-            style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "10px",
-                background: "linear-gradient(135deg, #00E5FF22, #00E5FF44)",
-                border: "1px solid #00E5FF55",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#00E5FF"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-label="Share"
-                role="img"
-              >
-                <title>Share</title>
-                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                <polyline points="16 6 12 2 8 6" />
-                <line x1="12" y1="2" x2="12" y2="15" />
-              </svg>
-            </div>
-            <div style={{ flex: 1 }}>
-              <p
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 700,
-                  color: "#ffffff",
-                  marginBottom: "4px",
-                  fontFamily: "'Figtree', sans-serif",
-                }}
-              >
-                Install Variant on iPhone
-              </p>
-              <p
-                style={{ fontSize: "12px", color: "#90A4AE", lineHeight: 1.5 }}
-              >
-                Tap the{" "}
-                <svg
-                  style={{
-                    display: "inline",
-                    verticalAlign: "middle",
-                    margin: "0 2px",
-                  }}
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#00E5FF"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-label="Share"
-                  role="img"
-                >
-                  <title>Share</title>
-                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-                  <polyline points="16 6 12 2 8 6" />
-                  <line x1="12" y1="2" x2="12" y2="15" />
-                </svg>{" "}
-                Share icon at the bottom of Safari, then tap{" "}
-                <span style={{ color: "#00E5FF", fontWeight: 600 }}>
-                  Add to Home Screen
-                </span>
-                .
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Android / Desktop Install Banner ── */}
-      {showInstallBanner && installable && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: "calc(80px + env(safe-area-inset-bottom))",
-            left: "50%",
-            transform: "translateX(-50%)",
-            zIndex: 99998,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "6px",
-          }}
-        >
-          <button
-            type="button"
-            onClick={handleInstallClick}
-            data-ocid="install.bottom_banner"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              backgroundColor: "#0a0a0f",
-              color: "#00E5FF",
-              border: "1.5px solid #00E5FF55",
-              borderRadius: "50px",
-              padding: "11px 22px",
-              fontSize: "14px",
-              fontWeight: 700,
-              cursor: "pointer",
-              boxShadow:
-                "0 4px 20px rgba(0,229,255,0.25), 0 0 0 1px rgba(0,229,255,0.1)",
-              fontFamily: "'Figtree', sans-serif",
-              whiteSpace: "nowrap",
-            }}
-          >
-            <Download size={16} color="#00E5FF" />
-            Install Variant App
-          </button>
-          <p
-            style={{
-              fontSize: "11px",
-              color: "#546E7A",
-              textAlign: "center",
-              fontFamily: "'Figtree', sans-serif",
-            }}
-          >
-            Install to use full-screen without browser bar
-          </p>
-          <button
-            type="button"
-            onClick={handleDismissBanner}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "#546E7A",
-              fontSize: "11px",
-              cursor: "pointer",
-              padding: "2px 8px",
-              fontFamily: "'Figtree', sans-serif",
-            }}
-          >
-            Not now
-          </button>
-        </div>
-      )}
-
       <div
         className="w-full relative flex flex-col"
         style={{ maxWidth: "480px", minHeight: "100dvh" }}
@@ -436,7 +179,6 @@ export default function App() {
                   currentQuestion={currentQuestion}
                   variants={variants}
                   prefillQuestion={prefillQuestion}
-                  isLoading={isLoading}
                   serverError={serverError}
                 />
               </motion.div>
@@ -484,10 +226,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.22, ease: "easeOut" }}
               >
-                <SettingsScreen
-                  installable={installable}
-                  onInstall={handleInstallClick}
-                />
+                <SettingsScreen />
               </motion.div>
             )}
           </AnimatePresence>

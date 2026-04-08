@@ -801,7 +801,6 @@ function SavedWordsSection({
 export function VocabScreen() {
   const [difficulty, setDifficulty] = useState(5);
   const [type, setType] = useState<"synonym" | "antonym">("synonym");
-  const [loading, setLoading] = useState(false);
   const [question, setQuestion] = useState<VocabQuestion | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<
     "A" | "B" | "C" | "D" | null
@@ -820,7 +819,6 @@ export function VocabScreen() {
   const diffLabel = getDifficultyLabel(difficulty);
 
   async function handleGenerate() {
-    setLoading(true);
     setQuestion(null);
     setSelectedLabel(null);
     setIsSaved(false);
@@ -836,8 +834,6 @@ export function VocabScreen() {
       }
     } catch {
       toast.error("Failed to generate question. Please try again.");
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -1131,23 +1127,19 @@ export function VocabScreen() {
       <button
         type="button"
         onClick={handleGenerate}
-        disabled={loading}
         data-ocid="vocab.primary_button"
         className="w-full font-bold transition-all active:scale-[0.98]"
         style={{
           height: "54px",
           borderRadius: "50px",
-          background: loading
-            ? "#B0BEC5"
-            : "linear-gradient(135deg, #2196F3, #1565C0)",
+          background: "linear-gradient(135deg, #2196F3, #1565C0)",
           color: "#ffffff",
           fontSize: "15px",
           letterSpacing: "1.5px",
           border: "none",
-          cursor: loading ? "default" : "pointer",
-          boxShadow: loading
-            ? "none"
-            : "0 6px 20px rgba(33,150,243,0.35), 0 2px 6px rgba(0,0,0,0.10)",
+          cursor: "pointer",
+          boxShadow:
+            "0 6px 20px rgba(33,150,243,0.35), 0 2px 6px rgba(0,0,0,0.10)",
           fontFamily: "'Figtree', sans-serif",
           display: "flex",
           alignItems: "center",
@@ -1155,47 +1147,13 @@ export function VocabScreen() {
           gap: "8px",
         }}
       >
-        {loading ? (
-          <>
-            <span
-              style={{
-                display: "inline-block",
-                width: "16px",
-                height: "16px",
-                borderRadius: "50%",
-                border: "2.5px solid rgba(255,255,255,0.4)",
-                borderTopColor: "#fff",
-                animation: "spin 0.7s linear infinite",
-              }}
-            />
-            Generating...
-          </>
-        ) : (
-          <>
-            <BookOpen size={18} />
-            GENERATE WORD
-          </>
-        )}
+        <BookOpen size={18} />
+        GENERATE WORD
       </button>
-
-      {/* ── Loading state ── */}
-      {loading && (
-        <div
-          style={{
-            textAlign: "center",
-            color: "#90A4AE",
-            fontSize: "13px",
-            paddingTop: "8px",
-          }}
-          data-ocid="vocab.loading_state"
-        >
-          Finding the perfect word for difficulty {difficulty}...
-        </div>
-      )}
 
       {/* ── Word Card ── */}
       <AnimatePresence mode="wait">
-        {question && !loading && (
+        {question && (
           <motion.div
             key={question.word + question.type}
             initial={{ opacity: 0, y: 12 }}

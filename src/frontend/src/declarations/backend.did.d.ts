@@ -37,7 +37,7 @@ export interface Variant {
   'optionC' : string,
 }
 export interface _SERVICE {
-  '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  '_initializeAccessControl' : ActorMethod<[], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'countSessions' : ActorMethod<[], bigint>,
   'deleteSession' : ActorMethod<[SessionId], undefined>,
